@@ -271,14 +271,17 @@ body {
 .chart-wrap   { height: 200px; position: relative; }
 
 /* ── Filter tabs ─────────────────────────────── */
-.filter-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-.filter-tab {
+.filter-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.filter-sub  { display: none; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-sub.visible { display: flex; }
+.filter-tab, .filter-sub-tab {
     padding: 6px 16px; border-radius: 999px; border: 1px solid #e8e8e8;
     background: #ffffff; font-family: inherit; font-size: 12px; font-weight: 600;
     color: #6b6b6b; cursor: pointer; transition: all .12s;
 }
-.filter-tab:hover  { border-color: #191919; color: #191919; }
-.filter-tab.active { background: #111111; color: #ffffff; border-color: #111111; }
+.filter-tab:hover, .filter-sub-tab:hover { border-color: #191919; color: #191919; }
+.filter-tab.active    { background: #111111; color: #ffffff; border-color: #111111; }
+.filter-sub-tab.active { background: #e04d80; color: #ffffff; border-color: #e04d80; }
 
 /* ── Activity table ──────────────────────────── */
 .table-wrap {
@@ -508,12 +511,17 @@ body {
 
     <!-- Filter tabs -->
     <div class="filter-tabs"
-         data-intro="All active shows only what needs attention — sent and viewed items only." data-step="5">
-        <button class="filter-tab active" data-filter="active"    onclick="filterTable('active')">All active</button>
-        <button class="filter-tab"        data-filter="invoices"  onclick="filterTable('invoices')">Invoices</button>
-        <button class="filter-tab"        data-filter="proposals" onclick="filterTable('proposals')">Proposals</button>
-        <button class="filter-tab"        data-filter="paid"      onclick="filterTable('paid')">Paid / Signed</button>
-        <button class="filter-tab"        data-filter="drafts"    onclick="filterTable('drafts')">Drafts</button>
+         data-intro="Use filters to focus — pick Invoices or Proposals for a sub-filter by status." data-step="5">
+        <button class="filter-tab active" data-cat="all"       onclick="setCat('all')">All</button>
+        <button class="filter-tab"        data-cat="invoices"  onclick="setCat('invoices')">Invoices</button>
+        <button class="filter-tab"        data-cat="proposals" onclick="setCat('proposals')">Proposals</button>
+        <button class="filter-tab"        data-cat="drafts"    onclick="setCat('drafts')">Drafts</button>
+    </div>
+    <div class="filter-sub" id="subTabs">
+        <button class="filter-sub-tab active" data-sub="all"    onclick="setSub('all')">All</button>
+        <button class="filter-sub-tab"        data-sub="active" onclick="setSub('active')">Active</button>
+        <span id="subPaid"  ><button class="filter-sub-tab" data-sub="paid"   onclick="setSub('paid')">Paid</button></span>
+        <span id="subSigned"><button class="filter-sub-tab" data-sub="signed" onclick="setSub('signed')">Signed</button></span>
     </div>
 
     <!-- Table -->
@@ -616,26 +624,54 @@ const CHART_DATA = <?= $chart_data ?>;
     });
 })();
 
-// Filter — default "active"
-filterTable('active');
-function filterTable(filter) {
+// Two-level filter
+let _cat = 'all', _sub = 'all';
+
+function applyFilter() {
     document.querySelectorAll('.activity-row').forEach(row => {
         const t = row.dataset.type, s = row.dataset.status;
-        let show;
-        switch (filter) {
-            case 'active':    show = ['sent','viewed'].includes(s); break;
-            case 'invoices':  show = t === 'invoice'; break;
-            case 'proposals': show = t === 'proposal'; break;
-            case 'paid':      show = ['paid','signed','accepted'].includes(s); break;
-            case 'drafts':    show = s === 'draft'; break;
-            default:          show = true;
+        let show = true;
+        // Category
+        if (_cat === 'invoices')  show = t === 'invoice';
+        else if (_cat === 'proposals') show = t === 'proposal';
+        else if (_cat === 'drafts')    show = s === 'draft';
+        // Sub-filter (only when a category is selected)
+        if (show && _cat !== 'all' && _cat !== 'drafts') {
+            if (_sub === 'active') show = ['sent','viewed'].includes(s);
+            else if (_sub === 'paid')   show = s === 'paid';
+            else if (_sub === 'signed') show = ['signed','accepted'].includes(s);
         }
         row.style.display = show ? '' : 'none';
     });
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    const btn = document.querySelector('[data-filter="' + filter + '"]');
-    if (btn) btn.classList.add('active');
 }
+
+function setCat(cat) {
+    _cat = cat; _sub = 'all';
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-cat="' + cat + '"]').classList.add('active');
+    // Show/hide sub row and its paid vs signed button
+    const sub = document.getElementById('subTabs');
+    if (cat === 'invoices' || cat === 'proposals') {
+        sub.classList.add('visible');
+        document.getElementById('subPaid').style.display   = cat === 'invoices'  ? '' : 'none';
+        document.getElementById('subSigned').style.display = cat === 'proposals' ? '' : 'none';
+    } else {
+        sub.classList.remove('visible');
+    }
+    // Reset sub-tab active state
+    document.querySelectorAll('.filter-sub-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-sub="all"]').classList.add('active');
+    applyFilter();
+}
+
+function setSub(sub) {
+    _sub = sub;
+    document.querySelectorAll('.filter-sub-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-sub="' + sub + '"]').classList.add('active');
+    applyFilter();
+}
+
+setCat('all');
 
 // Dropdown
 function toggleDropdown(e, btn) {
