@@ -5,8 +5,10 @@
 // ═══════════════════════════════════════════
 
 session_start();
-require_once __DIR__ . '/../taterdash/auth.php';
-require_login();
+if (empty($_SESSION['td_user'])) {
+    header('Location: /taterdash-app/taterdash/login.php');
+    exit;
+}
 require_once __DIR__ . '/../taterdash/config.php';
 
 $pdo = db_connect();
