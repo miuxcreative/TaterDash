@@ -278,7 +278,7 @@ $badge_map = [
       background: var(--white);
       border: 1px solid var(--border);
       border-radius: 12px;
-      overflow: hidden;
+      overflow: visible;
     }
     table {
       width: 100%;
@@ -346,7 +346,7 @@ $badge_map = [
       border: 1px solid var(--border);
       border-radius: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.10);
-      z-index: 10;
+      z-index: 100;
       min-width: 160px;
       padding: 6px 0;
     }
