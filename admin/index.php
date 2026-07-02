@@ -8,574 +8,568 @@ require_once __DIR__ . '/../taterdash/config.php';
 
 $pdo  = db_connect();
 $year = (int) date('Y');
+$user = $_SESSION['td_user'];
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 $total_sent = (float) $pdo->query("
-    SELECT COALESCE(SUM(total), 0) FROM (
-        SELECT total FROM td_invoices  WHERE status != 'draft' AND YEAR(created_at) = $year
+    SELECT COALESCE(SUM(total),0) FROM (
+        SELECT total FROM td_invoices  WHERE status!='draft' AND YEAR(created_at)=$year
         UNION ALL
-        SELECT total FROM td_proposals WHERE status != 'draft' AND YEAR(created_at) = $year
+        SELECT total FROM td_proposals WHERE status!='draft' AND YEAR(created_at)=$year
     ) t")->fetchColumn();
 
 $invoices_paid = (float) $pdo->query("
-    SELECT COALESCE(SUM(total), 0) FROM td_invoices
-    WHERE status = 'paid' AND YEAR(created_at) = $year")->fetchColumn();
+    SELECT COALESCE(SUM(total),0) FROM td_invoices
+    WHERE status='paid' AND YEAR(created_at)=$year")->fetchColumn();
 
 $proposals_signed = (float) $pdo->query("
-    SELECT COALESCE(SUM(total), 0) FROM td_proposals
-    WHERE status IN ('signed','accepted') AND YEAR(created_at) = $year")->fetchColumn();
+    SELECT COALESCE(SUM(total),0) FROM td_proposals
+    WHERE status IN ('signed','accepted') AND YEAR(created_at)=$year")->fetchColumn();
 
 $outstanding = (float) $pdo->query("
-    SELECT COALESCE(SUM(total), 0) FROM (
-        SELECT total FROM td_invoices  WHERE status IN ('sent','viewed') AND YEAR(created_at) = $year
+    SELECT COALESCE(SUM(total),0) FROM (
+        SELECT total FROM td_invoices  WHERE status IN ('sent','viewed') AND YEAR(created_at)=$year
         UNION ALL
-        SELECT total FROM td_proposals WHERE status IN ('sent','viewed') AND YEAR(created_at) = $year
+        SELECT total FROM td_proposals WHERE status IN ('sent','viewed') AND YEAR(created_at)=$year
     ) t")->fetchColumn();
 
-// ── Monthly chart data ────────────────────────────────────────────────────────
-$inv_sent    = array_fill(0, 12, 0);
-$inv_paid    = array_fill(0, 12, 0);
-$prop_sent   = array_fill(0, 12, 0);
-$prop_signed = array_fill(0, 12, 0);
+// ── Monthly chart ─────────────────────────────────────────────────────────────
+$inv_sent = $inv_paid = $prop_sent = $prop_signed = array_fill(0, 12, 0);
 
-foreach ($pdo->query("
-    SELECT MONTH(created_at) AS m, status, SUM(total) AS total
-    FROM td_invoices WHERE YEAR(created_at) = $year
-    GROUP BY MONTH(created_at), status")->fetchAll() as $r) {
-    $i = (int)$r['m'] - 1;
-    if ($r['status'] !== 'draft') { $inv_sent[$i] += (float)$r['total']; }
-    if ($r['status'] === 'paid')  { $inv_paid[$i] += (float)$r['total']; }
+foreach ($pdo->query("SELECT MONTH(created_at) m, status, SUM(total) total FROM td_invoices WHERE YEAR(created_at)=$year GROUP BY m,status")->fetchAll() as $r) {
+    $i = (int)$r['m']-1;
+    if ($r['status']!=='draft')  { $inv_sent[$i] += (float)$r['total']; }
+    if ($r['status']==='paid')   { $inv_paid[$i] += (float)$r['total']; }
 }
-foreach ($pdo->query("
-    SELECT MONTH(created_at) AS m, status, SUM(total) AS total
-    FROM td_proposals WHERE YEAR(created_at) = $year
-    GROUP BY MONTH(created_at), status")->fetchAll() as $r) {
-    $i = (int)$r['m'] - 1;
-    if ($r['status'] !== 'draft')                      { $prop_sent[$i]   += (float)$r['total']; }
-    if (in_array($r['status'], ['signed','accepted'])) { $prop_signed[$i] += (float)$r['total']; }
+foreach ($pdo->query("SELECT MONTH(created_at) m, status, SUM(total) total FROM td_proposals WHERE YEAR(created_at)=$year GROUP BY m,status")->fetchAll() as $r) {
+    $i = (int)$r['m']-1;
+    if ($r['status']!=='draft')                      { $prop_sent[$i]   += (float)$r['total']; }
+    if (in_array($r['status'],['signed','accepted'])) { $prop_signed[$i] += (float)$r['total']; }
 }
+$chart_data = json_encode(compact('inv_sent','inv_paid','prop_sent','prop_signed'));
 
-$chart_data = json_encode([
-    'inv_sent'    => $inv_sent,
-    'inv_paid'    => $inv_paid,
-    'prop_sent'   => $prop_sent,
-    'prop_signed' => $prop_signed,
-]);
-
-// ── Activity (invoices + proposals unified) ───────────────────────────────────
+// ── Activity ──────────────────────────────────────────────────────────────────
 $activity = $pdo->query("
-    SELECT 'invoice' AS row_type, id, client_name, invoice_num AS ref_num,
-           invoice_num AS sub_label, created_at, status, total
+    SELECT 'invoice' row_type, id, client_name, invoice_num ref_num,
+           invoice_num sub_label, created_at, status, total
     FROM td_invoices
     UNION ALL
-    SELECT 'proposal' AS row_type, id, client_name, proposal_num AS ref_num,
-           COALESCE(campaign_name,'') AS sub_label, created_at, status, total
+    SELECT 'proposal' row_type, id, client_name, proposal_num ref_num,
+           COALESCE(campaign_name,'') sub_label, created_at, status, total
     FROM td_proposals
     ORDER BY created_at DESC")->fetchAll();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function fmt_money(float $n): string {
-    return '$' . number_format($n, 0);
-}
+function fmt($n): string { return '$'.number_format((float)$n, 0); }
 
-function status_badge(string $status): string {
+function status_badge(string $s): string {
     $map = [
-        'draft'    => 'badge--draft',
-        'sent'     => 'badge--sent',
-        'viewed'   => 'badge--viewed',
-        'paid'     => 'badge--paid',
-        'signed'   => 'badge--signed',
-        'accepted' => 'badge--signed',
+        'draft'    => ['#f5e5e5','#b0b0b0'],
+        'sent'     => ['#faf0f0','#6b6b6b'],
+        'viewed'   => ['#f2d0dc','#191919'],
+        'paid'     => ['#e04d80','#ffffff'],
+        'signed'   => ['#e04d80','#ffffff'],
+        'accepted' => ['#e04d80','#ffffff'],
+        'declined' => ['#f5e5e5','#b0b0b0'],
     ];
-    $cls   = $map[$status] ?? 'badge--draft';
-    $label = ucfirst($status === 'accepted' ? 'signed' : $status);
-    return '<span class="badge ' . $cls . '">' . htmlspecialchars($label) . '</span>';
+    [$bg,$color] = $map[$s] ?? ['#f5e5e5','#b0b0b0'];
+    $label = ucfirst($s==='accepted'?'signed':$s);
+    return "<span class=\"badge\" style=\"background:$bg;color:$color\">$label</span>";
 }
 
 function row_actions(array $row): string {
-    $type   = $row['row_type'];
-    $id     = (int) $row['id'];
-    $status = $row['status'];
-    $html   = '';
+    $type  = $row['row_type'];
+    $id    = (int)$row['id'];
+    $st    = $row['status'];
+    $dd    = '';
 
     if ($type === 'invoice') {
-        $open_url = '/invoice/?id=' . $id;
-        $edit_url = '/taterdash-app/admin/edit-invoice.php?id=' . $id;
-        $copy_url = SITE_URL . '/invoice/?id=' . $id;
-        if ($status === 'draft') {
-            $html .= '<a class="act-btn" href="' . $edit_url . '">Edit</a>';
-            $html .= '<button class="act-btn danger" onclick="confirmDelete(\'invoice\',' . $id . ')">Delete</button>';
-        } elseif (in_array($status, ['sent','viewed'])) {
-            $html .= '<a class="act-btn" href="' . $open_url . '" target="_blank">Open</a>';
-            $html .= '<button class="act-btn" onclick="copyLink(\'' . htmlspecialchars($copy_url, ENT_QUOTES) . '\')">Copy link</button>';
-            $html .= '<button class="act-btn" onclick="markPaid(' . $id . ')">Mark paid</button>';
+        $open = '/invoice/?id='.$id;
+        $edit = '/taterdash-app/admin/edit-invoice.php?id='.$id;
+        $copy = htmlspecialchars(SITE_URL.'/invoice/?id='.$id, ENT_QUOTES);
+        if ($st === 'draft') {
+            $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
+            $dd .= '<button class="dd-item dd-pink dd-last" onclick="confirmDelete(\'invoice\','.$id.')">Delete</button>';
+        } elseif (in_array($st,['sent','viewed'])) {
+            $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open invoice</a>';
+            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\')">Copy link</button>';
+            $dd .= '<button class="dd-item" onclick="markPaid('.$id.')">Mark as paid</button>';
+            $dd .= '<a class="dd-item dd-last" href="'.$edit.'">Edit</a>';
         } else {
-            $html .= '<a class="act-btn" href="' . $open_url . '" target="_blank">Open</a>';
+            $dd .= '<a class="dd-item dd-last" href="'.$open.'" target="_blank">Open invoice</a>';
         }
     } else {
-        $open_url = '/proposal/?id=' . $id;
-        $edit_url = '/taterdash-app/admin/edit-proposal.php?id=' . $id;
-        $copy_url = SITE_URL . '/proposal/?id=' . $id;
-        if ($status === 'draft') {
-            $html .= '<a class="act-btn" href="' . $edit_url . '">Edit</a>';
-            $html .= '<button class="act-btn danger" onclick="confirmDelete(\'proposal\',' . $id . ')">Delete</button>';
-        } elseif (in_array($status, ['sent','viewed'])) {
-            $html .= '<a class="act-btn" href="' . $open_url . '" target="_blank">Open</a>';
-            $html .= '<button class="act-btn" onclick="copyLink(\'' . htmlspecialchars($copy_url, ENT_QUOTES) . '\')">Copy link</button>';
-        } elseif (in_array($status, ['signed','accepted'])) {
-            $html .= '<a class="act-btn" href="' . $open_url . '" target="_blank">Open</a>';
-            $html .= '<button class="act-btn create-inv" onclick="createInvoiceFromProposal(' . $id . ')">Create Invoice</button>';
+        $open = '/proposal/?id='.$id;
+        $edit = '/taterdash-app/admin/edit-proposal.php?id='.$id;
+        $copy = htmlspecialchars(SITE_URL.'/proposal/?id='.$id, ENT_QUOTES);
+        if ($st === 'draft') {
+            $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
+            $dd .= '<button class="dd-item dd-pink dd-last" onclick="confirmDelete(\'proposal\','.$id.')">Delete</button>';
+        } elseif (in_array($st,['sent','viewed'])) {
+            $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open proposal</a>';
+            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\')">Copy link</button>';
+            $dd .= '<a class="dd-item dd-last" href="'.$edit.'">Edit</a>';
+        } elseif (in_array($st,['signed','accepted'])) {
+            $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open proposal</a>';
+            $dd .= '<button class="dd-item dd-pink dd-last" onclick="createInvoiceFromProposal('.$id.')">Create invoice</button>';
         } else {
-            $html .= '<a class="act-btn" href="' . $open_url . '" target="_blank">Open</a>';
+            $dd .= '<a class="dd-item dd-last" href="'.$open.'" target="_blank">Open proposal</a>';
         }
     }
-    return $html;
+    return '<div class="action-wrap"><button class="three-dot" onclick="toggleDropdown(event,this)">⋯</button><div class="dropdown-menu">'.$dd.'</div></div>';
 }
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TaterDash</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TaterDash — Dashboard</title>
 <link rel="preconnect" href="https://api.fontshare.com">
-<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/introjs.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/intro.min.js"></script>
 <style>
-:root {
-    --pink:       #e04d80;
-    --blush:      #faf0f0;
-    --blush-dark: #f5e5e5;
-    --card-rose:  #f2d0dc;
-    --card-sand:  #e6d5b8;
-    --card-sky:   #c4dde8;
-    --ink:        #111111;
-    --ink-mid:    #555555;
-    --ink-light:  #999999;
-    --border:     #e8e8e8;
-    --white:      #ffffff;
-    --sidebar-w:  220px;
-    --topbar-h:   60px;
-    --radius:     16px;
-}
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
     font-family: 'Satoshi', sans-serif;
-    background: var(--blush);
-    color: var(--ink);
-    min-height: 100vh;
+    background: #f5f5f5;
+    color: #191919;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Topbar */
-.topbar {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: var(--topbar-h);
-    background: var(--ink);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    z-index: 200;
-}
-.topbar-logo { font-size: 15px; font-weight: 700; color: var(--white); letter-spacing: .02em; }
-.topbar-logo span { color: var(--pink); }
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
-.tb-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px; border-radius: 999px;
-    font-family: inherit; font-size: 13px; font-weight: 600;
-    cursor: pointer; text-decoration: none; border: none;
-    transition: opacity .15s;
-}
-.tb-btn:hover { opacity: .85; }
-.tb-btn--pink  { background: var(--pink);               color: var(--white); }
-.tb-btn--ghost { background: rgba(255,255,255,.1);      color: var(--white); }
-
-/* Layout */
-.layout { display: flex; margin-top: var(--topbar-h); min-height: calc(100vh - var(--topbar-h)); }
-
-/* Sidebar */
+/* ── Sidebar ─────────────────────────────────── */
 .sidebar {
     position: fixed;
-    top: var(--topbar-h); left: 0; bottom: 0;
-    width: var(--sidebar-w);
-    background: var(--white);
-    border-right: 1px solid var(--border);
-    padding: 24px 0 0;
-    overflow-y: auto;
+    top: 0; left: 0; bottom: 0;
+    width: 240px;
+    background: #111111;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    z-index: 300;
 }
-.nav-group { margin-bottom: 24px; }
+.sidebar-brand {
+    padding: 24px 20px 16px;
+    flex-shrink: 0;
+}
+.sidebar-logo {
+    height: 40px;
+    width: auto;
+    display: block;
+    margin-bottom: 12px;
+}
+.sidebar-name { font-size: 15px; font-weight: 700; color: #ffffff; }
+.sidebar-sub  { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #e04d80; margin-top: 3px; }
+
 .nav-label {
-    font-size: 10px; font-weight: 700; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--ink-light);
-    padding: 0 20px; margin-bottom: 6px; display: block;
+    font-size: 9px; font-weight: 500; letter-spacing: 0.16em;
+    text-transform: uppercase; color: #6b6b6b;
+    padding: 0 20px; margin-top: 24px;
+    display: block; margin-bottom: 4px;
 }
-.nav-link {
+.nav-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 9px 20px; font-size: 14px; font-weight: 500;
-    color: var(--ink-mid); text-decoration: none;
+    padding: 10px 20px; font-size: 13px; font-weight: 400;
+    color: rgba(255,255,255,0.6); text-decoration: none;
+    border-left: 2px solid transparent;
     transition: background .12s, color .12s;
 }
-.nav-link:hover, .nav-link.active { background: var(--blush); color: var(--pink); }
-.nav-icon { font-size: 15px; }
+.nav-item:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.9); }
+.nav-item.active { color: #ffffff; border-left-color: #e04d80; background: rgba(255,255,255,0.05); }
+.nav-item i { font-size: 16px; }
 
-/* Main */
+.sidebar-spacer { flex: 1; }
+.sidebar-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0 0; }
+.sidebar-profile { padding: 14px 20px 22px; }
+.sidebar-profile-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #f2d0dc; color: #e04d80;
+    font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    text-transform: uppercase; flex-shrink: 0;
+}
+.profile-name  { font-size: 13px; font-weight: 500; color: #ffffff; }
+.profile-link  { display: block; font-size: 12px; color: #6b6b6b; text-decoration: none; padding: 4px 0; transition: color .12s; }
+.profile-link:hover { color: rgba(255,255,255,0.6); }
+
+/* ── Topbar ──────────────────────────────────── */
+.topbar {
+    position: fixed;
+    top: 0; left: 240px; right: 0;
+    height: 52px;
+    background: #ffffff;
+    border-bottom: 1px solid #e8e8e8;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px;
+    z-index: 200;
+}
+.topbar-title { font-size: 18px; font-weight: 700; color: #191919; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.help-btn {
+    padding: 7px 16px; border-radius: 999px; border: none;
+    background: #f2d0dc; color: #191919;
+    font-family: inherit; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; transition: opacity .15s;
+}
+.help-btn:hover { opacity: .8; }
+.tb-ghost {
+    font-size: 12px; font-weight: 500; color: #6b6b6b;
+    text-decoration: none; padding: 7px 12px;
+    border-radius: 999px; transition: background .12s;
+}
+.tb-ghost:hover { background: #f5f5f5; }
+
+/* ── Main ────────────────────────────────────── */
 .main {
-    margin-left: var(--sidebar-w);
-    flex: 1; padding: 32px;
-    max-width: 1200px;
+    margin-left: 240px;
+    padding: 52px 0 0;
 }
-.page-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 28px; }
-.page-title  { font-size: 22px; font-weight: 700; }
-.page-sub    { font-size: 13px; color: var(--ink-light); }
+.main-inner { padding: 32px; }
 
-/* Stats row */
+/* ── Dash header ─────────────────────────────── */
+.dash-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+}
+.dash-title { font-size: 28px; font-weight: 300; color: #191919; }
+.dash-logo  { height: 52px; width: auto; }
+
+/* ── Stats ───────────────────────────────────── */
 .stats-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 28px;
+    display: grid; grid-template-columns: repeat(4,1fr);
+    gap: 16px; margin-bottom: 24px;
 }
-.stat-card { background: var(--white); border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
-.stat-bar  { height: 4px; }
-.stat-body { padding: 18px 20px 20px; }
+.stat-card {
+    background: #faf0f0; border-radius: 12px; padding: 20px 24px;
+}
 .stat-label {
-    font-size: 11px; font-weight: 600; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--ink-mid); margin-bottom: 10px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #b0b0b0; margin-bottom: 8px;
 }
-.stat-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.stat-value--pink { color: var(--pink); }
+.stat-value { font-size: 28px; font-weight: 700; color: #191919; font-variant-numeric: tabular-nums; }
+.stat-value--pink { color: #e04d80; }
+.stat-sub   { font-size: 12px; color: #6b6b6b; margin-top: 4px; }
 
-/* Chart */
+/* ── Chart section ───────────────────────────── */
 .chart-section {
-    background: var(--white);
-    border-radius: var(--radius);
-    padding: 24px;
-    margin-bottom: 28px;
+    background: #ffffff; border: 1px solid #e8e8e8;
+    border-radius: 12px; padding: 24px; margin-bottom: 24px;
 }
 .chart-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
 }
-.chart-title { font-size: 15px; font-weight: 700; }
+.chart-title  { font-size: 14px; font-weight: 700; }
 .chart-legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.legend-item  { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ink-mid); }
+.legend-item  { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
 .legend-dot   { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 .chart-wrap   { height: 200px; position: relative; }
 
-/* Filter tabs */
+/* ── Filter tabs ─────────────────────────────── */
 .filter-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
 .filter-tab {
-    padding: 6px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 999px;
-    background: none;
-    font-family: inherit; font-size: 12px; font-weight: 600;
-    color: var(--ink-mid); cursor: pointer;
-    transition: all .12s;
+    padding: 6px 16px; border-radius: 999px; border: 1px solid #e8e8e8;
+    background: #ffffff; font-family: inherit; font-size: 12px; font-weight: 600;
+    color: #6b6b6b; cursor: pointer; transition: all .12s;
 }
-.filter-tab:hover  { border-color: var(--pink); color: var(--pink); }
-.filter-tab.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+.filter-tab:hover  { border-color: #191919; color: #191919; }
+.filter-tab.active { background: #111111; color: #ffffff; border-color: #111111; }
 
-/* Activity table */
-.table-wrap { background: var(--white); border-radius: var(--radius); overflow: hidden; }
+/* ── Activity table ──────────────────────────── */
+.table-wrap {
+    background: #ffffff; border: 1px solid #e8e8e8;
+    border-radius: 12px; overflow: visible;
+}
 .activity-table { width: 100%; border-collapse: collapse; }
 .activity-table th {
     padding: 12px 16px; text-align: left;
-    font-size: 11px; font-weight: 700; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--ink-light);
-    border-bottom: 1px solid var(--border); white-space: nowrap;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #b0b0b0;
+    border-bottom: 1px solid #e8e8e8; white-space: nowrap;
 }
 .activity-table td {
-    padding: 14px 16px; font-size: 13.5px;
-    border-bottom: 1px solid var(--border); vertical-align: middle;
+    padding: 14px 16px; font-size: 13px;
+    border-bottom: 1px solid #f0f0f0; vertical-align: middle;
 }
 .activity-table tr:last-child td { border-bottom: none; }
-.activity-table tr.activity-row:hover td { background: var(--blush); }
+.activity-table tr.activity-row:hover td { background: #fafafa; }
 
+/* type pill */
 .type-pill {
     display: inline-flex; padding: 3px 10px; border-radius: 999px;
-    font-size: 11px; font-weight: 700; letter-spacing: .04em; white-space: nowrap;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
 }
-.type-pill--invoice  { background: var(--card-sky);  color: var(--ink); }
-.type-pill--proposal { background: var(--card-rose); color: var(--ink); }
+.type-pill--invoice  { background: #c4dde8; color: #191919; }
+.type-pill--proposal { background: #f2d0dc; color: #191919; }
 
-.client-name { font-weight: 600; }
-.client-sub  { font-size: 11px; color: var(--ink-light); margin-top: 2px; }
+/* client */
+.client-name { font-weight: 600; color: #191919; }
+.client-sub  { font-size: 11px; color: #b0b0b0; margin-top: 2px; }
 
-.ref-num {
-    font-size: 12px; font-weight: 600; color: var(--ink-mid);
-    font-variant-numeric: tabular-nums;
-}
+/* ref num */
+.ref-num { font-size: 12px; font-weight: 600; color: #6b6b6b; font-variant-numeric: tabular-nums; }
 
-.date-cell  { color: var(--ink-mid); font-size: 13px; white-space: nowrap; }
+/* date */
+.date-cell { color: #6b6b6b; font-size: 13px; white-space: nowrap; }
 
+/* badge */
 .badge {
-    display: inline-flex; padding: 4px 10px; border-radius: 999px;
-    font-size: 11px; font-weight: 700; letter-spacing: .04em; white-space: nowrap;
+    display: inline-flex; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
 }
-.badge--draft  { background: var(--blush-dark); color: var(--ink-mid); }
-.badge--sent   { background: var(--blush);      color: var(--ink-mid); }
-.badge--viewed { background: var(--card-sand);  color: var(--ink); }
-.badge--paid   { background: var(--pink);        color: var(--white); }
-.badge--signed { background: var(--ink);         color: var(--white); }
 
-.amount-cell { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
-.actions-cell { white-space: nowrap; text-align: right; }
+/* amount */
+.amount-cell { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; color: #191919; }
+.amount-cell.amount-pink { color: #e04d80; }
 
-.act-btn {
-    display: inline-flex; align-items: center;
-    padding: 5px 12px; border-radius: 999px;
-    font-family: inherit; font-size: 12px; font-weight: 600;
-    cursor: pointer; border: 1.5px solid var(--border);
-    background: none; color: var(--ink-mid); text-decoration: none;
-    margin-left: 4px; transition: all .12s;
+/* three-dot dropdown */
+.actions-cell { text-align: right; white-space: nowrap; position: relative; }
+.action-wrap  { position: relative; display: inline-block; }
+.three-dot {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid #e8e8e8; background: #ffffff;
+    font-size: 18px; line-height: 1; color: #6b6b6b;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: background .12s, border-color .12s;
 }
-.act-btn:first-child { margin-left: 0; }
-.act-btn:hover       { border-color: var(--pink); color: var(--pink); }
-.act-btn.danger:hover { border-color: #c0392b; color: #c0392b; }
-.act-btn.create-inv  { background: var(--pink); border-color: var(--pink); color: var(--white); }
-.act-btn.create-inv:hover { opacity: .85; }
+.three-dot:hover { background: #f5f5f5; border-color: #d0d0d0; }
+.dropdown-menu {
+    display: none; position: absolute; right: 0; top: 36px;
+    background: #ffffff; border: 1px solid #e8e8e8; border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08); min-width: 160px; z-index: 100;
+    overflow: hidden;
+}
+.dropdown-menu.open { display: block; }
+.dd-item {
+    display: block; width: 100%; padding: 10px 16px;
+    font-family: inherit; font-size: 13px; font-weight: 400; color: #191919;
+    border: none; background: none; text-align: left; text-decoration: none;
+    border-bottom: 1px solid #f5e5e5; cursor: pointer; transition: background .1s;
+}
+.dd-item:hover    { background: #faf0f0; }
+.dd-item.dd-pink  { color: #e04d80; }
+.dd-item.dd-last  { border-bottom: none; }
 
-.empty-row td { text-align: center; padding: 32px; color: var(--ink-light); font-size: 14px; }
+.empty-row td { text-align: center; padding: 40px; color: #b0b0b0; font-size: 14px; }
 
-/* Modal */
+/* ── Modal ───────────────────────────────────── */
 .modal-overlay {
     display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.45); z-index: 500;
+    background: rgba(0,0,0,.4); z-index: 500;
     align-items: center; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
 .modal {
-    background: var(--white); border-radius: var(--radius);
-    overflow: hidden; width: 380px; max-width: 90vw;
+    background: #ffffff; border-radius: 16px; overflow: hidden;
+    width: 380px; max-width: 90vw;
     box-shadow: 0 20px 60px rgba(0,0,0,.15);
 }
-.modal-bar         { height: 5px; }
-.modal-bar--danger { background: #c0392b; }
-.modal-body   { padding: 28px; }
-.modal-title  { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
-.modal-msg    { font-size: 14px; color: var(--ink-mid); line-height: 1.55; }
-.modal-footer {
-    display: flex; justify-content: flex-end;
-    gap: 8px; padding: 16px 28px 24px;
-}
+.modal-bar         { height: 4px; background: #e04d80; }
+.modal-body        { padding: 28px; }
+.modal-title       { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.modal-msg         { font-size: 14px; color: #6b6b6b; line-height: 1.55; }
+.modal-footer      { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 28px 24px; }
 .modal-btn {
     padding: 9px 20px; border-radius: 999px;
     font-family: inherit; font-size: 13px; font-weight: 700;
     cursor: pointer; border: none; transition: opacity .15s;
 }
 .modal-btn:hover        { opacity: .85; }
-.modal-btn--cancel      { background: var(--blush-dark); color: var(--ink-mid); }
-.modal-btn--danger      { background: #c0392b;           color: var(--white); }
+.modal-btn--cancel { background: #f5e5e5; color: #6b6b6b; }
+.modal-btn--danger { background: #e04d80; color: #ffffff; }
 
-/* Toast */
+/* ── Toast ───────────────────────────────────── */
 .toast {
     position: fixed; bottom: 28px; left: 50%;
     transform: translateX(-50%) translateY(20px);
-    background: var(--ink); color: var(--white);
+    background: #111111; color: #ffffff;
     padding: 12px 22px; border-radius: 999px;
     font-size: 14px; font-weight: 600;
     opacity: 0; pointer-events: none;
-    transition: opacity .25s, transform .25s;
-    z-index: 600; white-space: nowrap;
+    transition: opacity .25s, transform .25s; z-index: 600; white-space: nowrap;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* Sidebar profile */
-.sidebar-spacer { flex: 1; }
-.sidebar-profile {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    border-top: 1px solid var(--border);
-    padding: 16px 20px;
-    background: var(--white);
-}
-.profile-row {
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 10px;
-}
-.avatar {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: var(--card-rose); color: var(--pink);
-    font-size: 14px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; text-transform: uppercase;
-}
-.profile-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-.profile-link {
-    display: block; font-size: 12px; font-weight: 500;
-    color: var(--ink-light); text-decoration: none;
-    padding: 5px 0; transition: color .12s;
-}
-.profile-link:hover { color: var(--pink); }
-
-/* Help button */
-.tb-btn--help { background: var(--card-rose); color: var(--ink); }
-
-/* Intro.js theme overrides */
+/* ── Intro.js overrides ──────────────────────── */
 .introjs-tooltip { font-family: 'Satoshi', sans-serif !important; border-radius: 12px !important; }
-.introjs-button  { font-family: 'Satoshi', sans-serif !important; border-radius: 999px !important; }
-.introjs-nextbutton, .introjs-donebutton {
-    background: var(--pink) !important; color: #fff !important;
-    border-color: var(--pink) !important; text-shadow: none !important;
-}
-.introjs-prevbutton { text-shadow: none !important; }
-.introjs-progressbar { background: var(--pink) !important; }
+.introjs-button  { font-family: 'Satoshi', sans-serif !important; border-radius: 999px !important; text-shadow: none !important; }
+.introjs-nextbutton, .introjs-donebutton { background: #e04d80 !important; border-color: #e04d80 !important; color: #fff !important; }
+.introjs-progressbar { background: #e04d80 !important; }
 </style>
 </head>
 <body>
 
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <img class="sidebar-logo" src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png" alt="" onerror="this.style.display='none'">
+        <div class="sidebar-name">TaterDash</div>
+        <div class="sidebar-sub">MallowFrenchie</div>
+    </div>
+
+    <span class="nav-label">Create</span>
+    <a class="nav-item" href="/taterdash-app/taterdash/new-invoice.html"
+       data-intro="Create a new invoice — fill in client details, add deliverables, and get a link to send." data-step="1">
+        <i class="ti ti-file-invoice"></i> New Invoice
+    </a>
+    <a class="nav-item" href="/taterdash-app/admin/new-proposal.php"
+       data-intro="Send a proposal first — client reviews the package and signs directly from the link." data-step="2">
+        <i class="ti ti-file-text"></i> New Proposal
+    </a>
+
+    <span class="nav-label">Manage</span>
+    <a class="nav-item active" href="/taterdash-app/admin/">
+        <i class="ti ti-layout-dashboard"></i> Dashboard
+    </a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=all">
+        <i class="ti ti-list"></i> All Activity
+    </a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=clients">
+        <i class="ti ti-users"></i> Clients
+    </a>
+
+    <div class="sidebar-spacer"></div>
+    <hr class="sidebar-divider">
+    <div class="sidebar-profile">
+        <div class="sidebar-profile-row">
+            <div class="avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($user, 0, 1))) ?></div>
+            <div class="profile-name"><?= htmlspecialchars($user) ?></div>
+        </div>
+        <a class="profile-link" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
+        <a class="profile-link" href="/taterdash-app/taterdash/logout.php">Logout</a>
+    </div>
+</nav>
+
+<!-- Topbar -->
 <div class="topbar">
-    <div class="topbar-logo">Tater<span>Dash</span></div>
+    <div class="topbar-title">Dashboard</div>
     <div class="topbar-actions">
-        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/new-invoice.html"
-           data-intro="Create a new invoice — fill in client details, add your deliverables, and generate a link to send." data-step="1">+ Invoice</a>
-        <a class="tb-btn tb-btn--pink"  href="/taterdash-app/admin/new-proposal.php"
-           data-intro="Send a proposal before invoicing — client can review the package and sign directly from the link." data-step="2">+ Proposal</a>
-        <button class="tb-btn tb-btn--help" onclick="startTour()">?</button>
-        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
+        <button class="help-btn" onclick="startTour()">? Help</button>
+        <a class="tb-ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
     </div>
 </div>
 
-<div class="layout">
-    <nav class="sidebar">
-        <div class="nav-group">
-            <span class="nav-label">Create</span>
-            <a class="nav-link" href="/taterdash-app/taterdash/new-invoice.html"><span class="nav-icon">🧾</span> New Invoice</a>
-            <a class="nav-link" href="/taterdash-app/admin/new-proposal.php"><span class="nav-icon">📋</span> New Proposal</a>
-        </div>
-        <div class="nav-group">
-            <span class="nav-label">Manage</span>
-            <a class="nav-link active" href="/taterdash-app/admin/"><span class="nav-icon">📊</span> Dashboard</a>
-        </div>
-        <div class="sidebar-spacer"></div>
-        <div class="sidebar-profile">
-            <div class="profile-row">
-                <div class="avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['td_user'], 0, 1))) ?></div>
-                <div class="profile-name"><?= htmlspecialchars($_SESSION['td_user']) ?></div>
-            </div>
-            <a class="profile-link" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
-        </div>
-    </nav>
+<!-- Main -->
+<div class="main">
+<div class="main-inner">
 
-    <main class="main">
-        <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <span class="page-sub"><?= date('F Y') ?></span>
-        </div>
+    <!-- Dash header -->
+    <div class="dash-header">
+        <h1 class="dash-title">Dashboard</h1>
+        <img class="dash-logo" src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png" alt="" onerror="this.style.display='none'">
+    </div>
 
-        <!-- Stats -->
-        <div class="stats-row" data-intro="Your year at a glance — updates automatically as invoices are paid and proposals are signed." data-step="3">
-            <div class="stat-card">
-                <div class="stat-bar" style="background:var(--card-sand)"></div>
-                <div class="stat-body">
-                    <div class="stat-label">Total Sent</div>
-                    <div class="stat-value"><?= fmt_money($total_sent) ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-bar" style="background:var(--pink)"></div>
-                <div class="stat-body">
-                    <div class="stat-label">Invoices Paid</div>
-                    <div class="stat-value stat-value--pink"><?= fmt_money($invoices_paid) ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-bar" style="background:var(--ink)"></div>
-                <div class="stat-body">
-                    <div class="stat-label">Proposals Signed</div>
-                    <div class="stat-value stat-value--pink"><?= fmt_money($proposals_signed) ?></div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-bar" style="background:var(--card-sky)"></div>
-                <div class="stat-body">
-                    <div class="stat-label">Outstanding</div>
-                    <div class="stat-value"><?= fmt_money($outstanding) ?></div>
-                </div>
-            </div>
+    <!-- Stats -->
+    <div class="stats-row"
+         data-intro="Your year at a glance — updates automatically as invoices are paid and proposals are signed." data-step="3">
+        <div class="stat-card">
+            <div class="stat-label">Total Sent</div>
+            <div class="stat-value"><?= fmt($total_sent) ?></div>
+            <div class="stat-sub"><?= $year ?> total</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-label">Invoices Paid</div>
+            <div class="stat-value stat-value--pink"><?= fmt($invoices_paid) ?></div>
+            <div class="stat-sub">Collected</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Proposals Signed</div>
+            <div class="stat-value stat-value--pink"><?= fmt($proposals_signed) ?></div>
+            <div class="stat-sub">Deals closed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Outstanding</div>
+            <div class="stat-value"><?= fmt($outstanding) ?></div>
+            <div class="stat-sub">Awaiting payment</div>
+        </div>
+    </div>
 
-        <!-- Chart -->
-        <div class="chart-section" data-intro="See what's been sent vs paid each month. Faint colors = sent, solid colors = paid or signed." data-step="4">
-            <div class="chart-header">
-                <div class="chart-title">Monthly Overview <?= $year ?></div>
-                <div class="chart-legend">
-                    <div class="legend-item"><div class="legend-dot" style="background:#f2d0dc"></div>Invoice Sent</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#e04d80"></div>Invoice Paid</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#e6d5b8"></div>Proposal Sent</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:#191919"></div>Proposal Signed</div>
-                </div>
-            </div>
-            <div class="chart-wrap">
-                <canvas id="monthlyChart"></canvas>
+    <!-- Chart -->
+    <div class="chart-section"
+         data-intro="Monthly breakdown — faint colors are sent, solid colors are paid or signed." data-step="4">
+        <div class="chart-header">
+            <div class="chart-title">Monthly Overview <?= $year ?></div>
+            <div class="chart-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#f2d0dc"></div>Invoice Sent</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#e04d80"></div>Invoice Paid</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#e6d5b8"></div>Proposal Sent</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#191919"></div>Proposal Signed</div>
             </div>
         </div>
-
-        <!-- Filter + Table -->
-        <div class="filter-tabs" data-intro="All active shows only what needs your attention — sent and viewed. Use filters to see paid or drafts." data-step="5">
-            <button class="filter-tab active" data-filter="all"       onclick="filterTable('all')">All</button>
-            <button class="filter-tab"        data-filter="active"    onclick="filterTable('active')">Active</button>
-            <button class="filter-tab"        data-filter="invoices"  onclick="filterTable('invoices')">Invoices</button>
-            <button class="filter-tab"        data-filter="proposals" onclick="filterTable('proposals')">Proposals</button>
-            <button class="filter-tab"        data-filter="paid"      onclick="filterTable('paid')">Paid / Signed</button>
-            <button class="filter-tab"        data-filter="drafts"    onclick="filterTable('drafts')">Drafts</button>
+        <div class="chart-wrap">
+            <canvas id="monthlyChart"></canvas>
         </div>
+    </div>
 
-        <div class="table-wrap">
-            <table class="activity-table">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Client</th>
-                        <th>Reference</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th style="text-align:right">Amount</th>
-                        <th style="text-align:right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="activityBody">
+    <!-- Filter tabs -->
+    <div class="filter-tabs"
+         data-intro="All active shows only what needs attention — sent and viewed items only." data-step="5">
+        <button class="filter-tab active" data-filter="active"    onclick="filterTable('active')">All active</button>
+        <button class="filter-tab"        data-filter="invoices"  onclick="filterTable('invoices')">Invoices</button>
+        <button class="filter-tab"        data-filter="proposals" onclick="filterTable('proposals')">Proposals</button>
+        <button class="filter-tab"        data-filter="paid"      onclick="filterTable('paid')">Paid / Signed</button>
+        <button class="filter-tab"        data-filter="drafts"    onclick="filterTable('drafts')">Drafts</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+        <table class="activity-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Client</th>
+                    <th>Reference</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Amount</th>
+                    <th style="text-align:right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="activityBody">
 <?php if (empty($activity)): ?>
-                    <tr class="empty-row"><td colspan="7">No activity yet — create your first invoice or proposal.</td></tr>
+                <tr class="empty-row"><td colspan="7">No activity yet — create your first invoice or proposal.</td></tr>
 <?php else: foreach ($activity as $i => $row):
-    $s    = htmlspecialchars($row['status']);
+    $s    = $row['status'];
     $type = $row['row_type'];
     $date = date('M j, Y', strtotime($row['created_at']));
+    $amtCls = in_array($s, ['paid','signed','accepted']) ? 'amount-cell amount-pink' : 'amount-cell';
     $first = ($i === 0);
 ?>
-                    <tr class="activity-row" data-type="<?= $type ?>" data-status="<?= $s ?>">
-                        <td><span class="type-pill type-pill--<?= $type ?>"><?= ucfirst($type) ?></span></td>
-                        <td>
-                            <div class="client-name"><?= htmlspecialchars($row['client_name']) ?></div>
-                            <?php if ($row['sub_label'] && $row['sub_label'] !== $row['ref_num']): ?>
-                            <div class="client-sub"><?= htmlspecialchars($row['sub_label']) ?></div>
-                            <?php endif; ?>
-                        </td>
-                        <td><span class="ref-num"><?= htmlspecialchars($row['ref_num']) ?></span></td>
-                        <td><span class="date-cell"><?= $date ?></span></td>
-                        <td <?= $first ? 'data-intro="Status updates automatically — sent when you copy the link, viewed when the client opens it." data-step="6"' : '' ?>><?= status_badge($row['status']) ?></td>
-                        <td class="amount-cell"><?= fmt_money((float)$row['total']) ?></td>
-                        <td class="actions-cell" <?= $first ? 'data-intro="Copy link sends the client their view. Signed proposals get a Create Invoice button — one click pre-fills the invoice from the proposal." data-step="7"' : '' ?>><?= row_actions($row) ?></td>
-                    </tr>
+                <tr class="activity-row" data-type="<?= $type ?>" data-status="<?= htmlspecialchars($s) ?>">
+                    <td><span class="type-pill type-pill--<?= $type ?>"><?= ucfirst($type) ?></span></td>
+                    <td>
+                        <div class="client-name"><?= htmlspecialchars($row['client_name']) ?></div>
+                        <?php if ($row['sub_label'] && $row['sub_label'] !== $row['ref_num']): ?>
+                        <div class="client-sub"><?= htmlspecialchars($row['sub_label']) ?></div>
+                        <?php endif; ?>
+                    </td>
+                    <td><span class="ref-num"><?= htmlspecialchars($row['ref_num']) ?></span></td>
+                    <td><span class="date-cell"><?= $date ?></span></td>
+                    <td <?= $first ? 'data-intro="Status updates automatically — sent when you copy the link, viewed when client opens it." data-step="6"' : '' ?>>
+                        <?= status_badge($s) ?>
+                    </td>
+                    <td class="<?= $amtCls ?>"><?= fmt((float)$row['total']) ?></td>
+                    <td class="actions-cell" <?= $first ? 'data-intro="Click ⋯ for actions. Signed proposals show Create Invoice — one click pre-fills everything." data-step="7"' : '' ?>>
+                        <?= row_actions($row) ?>
+                    </td>
+                </tr>
 <?php endforeach; endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </main>
-</div>
+            </tbody>
+        </table>
+    </div>
+
+</div><!-- /.main-inner -->
+</div><!-- /.main -->
 
 <!-- Delete modal -->
 <div class="modal-overlay" id="deleteModal">
     <div class="modal">
-        <div class="modal-bar modal-bar--danger"></div>
+        <div class="modal-bar"></div>
         <div class="modal-body">
             <div class="modal-title">Delete?</div>
             <div class="modal-msg" id="deleteModalMsg">This action cannot be undone.</div>
@@ -594,8 +588,7 @@ const CHART_DATA = <?= $chart_data ?>;
 
 // Chart
 (function () {
-    const ctx = document.getElementById('monthlyChart').getContext('2d');
-    new Chart(ctx, {
+    new Chart(document.getElementById('monthlyChart').getContext('2d'), {
         type: 'bar',
         data: {
             labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
@@ -607,145 +600,125 @@ const CHART_DATA = <?= $chart_data ?>;
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
                 tooltip: { callbacks: { label: c => ' $' + c.parsed.y.toLocaleString() } }
             },
             scales: {
-                x: {
-                    grid: { display: false },
-                    border: { display: false },
-                    ticks: { font: { family: 'Satoshi, sans-serif', size: 11 }, color: '#aaa' }
-                },
-                y: {
-                    grid: { color: '#f0f0f0' },
-                    border: { display: false },
-                    ticks: {
-                        font: { family: 'Satoshi, sans-serif', size: 11 },
-                        color: '#bbb',
-                        callback: v => v === 0 ? '' : (v >= 1000 ? '$' + Math.round(v / 1000) + 'k' : '$' + v)
-                    }
-                }
+                x: { grid: { display: false }, border: { display: false },
+                     ticks: { font: { family: 'Satoshi, sans-serif', size: 11 }, color: '#aaa' } },
+                y: { grid: { color: '#f0f0f0' }, border: { display: false },
+                     ticks: { font: { family: 'Satoshi, sans-serif', size: 11 }, color: '#bbb',
+                              callback: v => v === 0 ? '' : (v >= 1000 ? '$' + Math.round(v/1000) + 'k' : '$' + v) } }
             }
         }
     });
 })();
 
-// Filter
+// Filter — default "active"
+filterTable('active');
 function filterTable(filter) {
     document.querySelectorAll('.activity-row').forEach(row => {
-        const type   = row.dataset.type;
-        const status = row.dataset.status;
+        const t = row.dataset.type, s = row.dataset.status;
         let show;
         switch (filter) {
-            case 'active':    show = ['sent','viewed'].includes(status); break;
-            case 'invoices':  show = type === 'invoice'; break;
-            case 'proposals': show = type === 'proposal'; break;
-            case 'paid':      show = ['paid','signed','accepted'].includes(status); break;
-            case 'drafts':    show = status === 'draft'; break;
+            case 'active':    show = ['sent','viewed'].includes(s); break;
+            case 'invoices':  show = t === 'invoice'; break;
+            case 'proposals': show = t === 'proposal'; break;
+            case 'paid':      show = ['paid','signed','accepted'].includes(s); break;
+            case 'drafts':    show = s === 'draft'; break;
             default:          show = true;
         }
         row.style.display = show ? '' : 'none';
     });
     document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    document.querySelector('[data-filter="' + filter + '"]').classList.add('active');
+    const btn = document.querySelector('[data-filter="' + filter + '"]');
+    if (btn) btn.classList.add('active');
 }
 
-// Delete modal
-let _delType = null, _delId = null;
+// Dropdown
+function toggleDropdown(e, btn) {
+    e.stopPropagation();
+    const menu = btn.nextElementSibling;
+    const isOpen = menu.classList.contains('open');
+    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    if (!isOpen) menu.classList.add('open');
+}
+document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+});
 
+// Delete
+let _delType = null, _delId = null;
 function confirmDelete(type, id) {
-    _delType = type;
-    _delId   = id;
+    _delType = type; _delId = id;
     document.getElementById('deleteModalMsg').textContent =
         'Are you sure you want to delete this ' + type + '? This cannot be undone.';
     document.getElementById('deleteModalConfirm').onclick = executeDelete;
     document.getElementById('deleteModal').classList.add('open');
 }
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.remove('open');
-}
-document.getElementById('deleteModal').addEventListener('click', function (e) {
-    if (e.target === this) closeDeleteModal();
-});
+function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('open'); }
+document.getElementById('deleteModal').addEventListener('click', function(e) { if (e.target===this) closeDeleteModal(); });
 
 async function executeDelete() {
     closeDeleteModal();
-    const url  = _delType === 'invoice'
-        ? '/taterdash-app/taterdash/update-status.php'
-        : '/taterdash-app/taterdash/delete-proposal.php';
-    const body = _delType === 'invoice'
-        ? JSON.stringify({ invoice_id: _delId, status: '_delete' })
-        : JSON.stringify({ proposal_id: _delId });
+    const url  = _delType==='invoice' ? '/taterdash-app/taterdash/update-status.php' : '/taterdash-app/taterdash/delete-proposal.php';
+    const body = _delType==='invoice' ? JSON.stringify({invoice_id:_delId,status:'_delete'}) : JSON.stringify({proposal_id:_delId});
     try {
-        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-        const d = await r.json();
-        if (d.success) { showToast('Deleted.'); setTimeout(() => location.reload(), 800); }
-        else           { showToast('Error: ' + (d.error || 'Delete failed.')); }
-    } catch (e) { showToast('Network error.'); }
+        const d = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}).then(r=>r.json());
+        if (d.success) { showToast('Deleted.'); setTimeout(()=>location.reload(),800); }
+        else showToast('Error: '+(d.error||'Delete failed.'));
+    } catch(e) { showToast('Network error.'); }
 }
 
 // Mark paid
 async function markPaid(id) {
     try {
-        const r = await fetch('/taterdash-app/taterdash/update-status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ invoice_id: id, status: 'paid' })
-        });
-        const d = await r.json();
-        if (d.success) { showToast('Marked as paid!'); setTimeout(() => location.reload(), 800); }
-        else           { showToast('Error: ' + (d.error || 'Failed.')); }
-    } catch (e) { showToast('Network error.'); }
+        const d = await fetch('/taterdash-app/taterdash/update-status.php',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({invoice_id:id,status:'paid'})
+        }).then(r=>r.json());
+        if (d.success) { showToast('Marked as paid!'); setTimeout(()=>location.reload(),800); }
+        else showToast('Error: '+(d.error||'Failed.'));
+    } catch(e) { showToast('Network error.'); }
 }
 
 // Copy link
 function copyLink(url) {
     navigator.clipboard.writeText(url)
-        .then(() => showToast('Link copied!'))
-        .catch(() => showToast('Copy failed.'));
+        .then(()=>showToast('Link copied!'))
+        .catch(()=>showToast('Copy failed.'));
 }
 
 // Create invoice from proposal
-async function createInvoiceFromProposal(proposalId) {
+async function createInvoiceFromProposal(id) {
     try {
-        const r = await fetch('/taterdash-app/taterdash/create-invoice-from-proposal.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ proposal_id: proposalId })
-        });
-        const d = await r.json();
+        const d = await fetch('/taterdash-app/taterdash/create-invoice-from-proposal.php',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({proposal_id:id})
+        }).then(r=>r.json());
         if (d.success) {
-            showToast('Invoice ' + d.invoice_num + ' created!');
-            setTimeout(() => { window.location.href = d.edit_url; }, 900);
-        } else {
-            showToast('Error: ' + (d.error || 'Failed to create invoice.'));
-        }
-    } catch (e) { showToast('Network error.'); }
+            showToast('Invoice '+d.invoice_num+' created!');
+            setTimeout(()=>{ window.location.href=d.edit_url; },900);
+        } else showToast('Error: '+(d.error||'Failed.'));
+    } catch(e) { showToast('Network error.'); }
 }
 
 // Help tour
 function startTour() {
     introJs().setOptions({
-        nextLabel:          'Next →',
-        prevLabel:          '← Back',
-        doneLabel:          'Got it',
-        showProgress:       true,
-        showBullets:        false,
-        exitOnOverlayClick: true,
+        nextLabel:'Next →', prevLabel:'← Back', doneLabel:'Got it',
+        showProgress:true, showBullets:false, exitOnOverlayClick:true,
     }).start();
 }
 
 // Toast
-let _toastTimer;
+let _tt;
 function showToast(msg) {
     const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(_tt); _tt = setTimeout(()=>el.classList.remove('show'),2800);
 }
 </script>
 </body>

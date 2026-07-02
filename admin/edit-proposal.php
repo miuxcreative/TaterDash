@@ -35,6 +35,7 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaterDash — Edit <?= he($prop['proposal_num']) ?></title>
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@200,300,400,500,600,700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -53,12 +54,24 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
     .tb-btn--pink{background:var(--pink);color:var(--white);}
     .tb-btn--ghost{background:rgba(255,255,255,.1);color:var(--white);}
     .layout{display:grid;grid-template-columns:var(--sidebar) 1fr 340px;flex:1;overflow:hidden;height:calc(100vh - 60px);}
-    .nav{background:var(--white);border-right:1px solid var(--border);padding:24px 0;overflow-y:auto;}
-    .nav-label{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-light);padding:0 20px;margin-bottom:6px;margin-top:20px;}
-    .nav-label:first-child{margin-top:0;}
-    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:13px;font-weight:500;color:var(--ink-mid);cursor:pointer;border-left:2px solid transparent;text-decoration:none;}
-    .nav-item:hover{background:var(--blush);color:var(--ink);}
-    .nav-item.active{color:var(--pink);border-left-color:var(--pink);background:#fdf0f4;}
+    .nav{background:#111111;display:flex;flex-direction:column;overflow-y:auto;}
+    .nav-brand{padding:24px 20px 16px;flex-shrink:0;}
+    .nav-brand-logo{height:40px;width:auto;display:block;margin-bottom:12px;}
+    .nav-brand-name{font-size:15px;font-weight:700;color:#ffffff;}
+    .nav-brand-sub{font-size:9px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#e04d80;margin-top:3px;}
+    .nav-label{font-size:9px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:#6b6b6b;padding:0 20px;margin-top:24px;display:block;margin-bottom:4px;}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:13px;font-weight:400;color:rgba(255,255,255,0.6);text-decoration:none;border-left:2px solid transparent;transition:background .12s,color .12s;}
+    .nav-item:hover{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.9);}
+    .nav-item.active{color:#ffffff;border-left-color:#e04d80;background:rgba(255,255,255,0.05);}
+    .nav-item i{font-size:16px;}
+    .nav-spacer{flex:1;}
+    .nav-divider{border:none;border-top:1px solid rgba(255,255,255,0.08);margin:12px 0 0;}
+    .nav-profile{padding:14px 20px 20px;}
+    .nav-profile-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .nav-avatar{width:32px;height:32px;border-radius:50%;background:#f2d0dc;color:#e04d80;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;text-transform:uppercase;flex-shrink:0;}
+    .nav-uname{font-size:13px;font-weight:500;color:#ffffff;}
+    .nav-profile-link{display:block;font-size:12px;color:#6b6b6b;text-decoration:none;padding:4px 0;transition:color .12s;}
+    .nav-profile-link:hover{color:rgba(255,255,255,0.6);}
     .nav-icon{font-size:15px;}
     .form-panel{overflow-y:auto;padding:32px 36px;background:#f8f8f8;}
     .form-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
@@ -157,12 +170,29 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 
 <div class="layout">
   <nav class="nav">
-    <div class="nav-label">Create</div>
-    <a class="nav-item" href="/taterdash-app/taterdash/new-invoice.html"><span class="nav-icon">📄</span> New Invoice</a>
-    <a class="nav-item" href="/taterdash-app/admin/new-proposal.php"><span class="nav-icon">📋</span> New Proposal</a>
-    <div class="nav-label">Manage</div>
-    <a class="nav-item" href="/taterdash-app/admin/"><span class="nav-icon">📊</span> Dashboard</a>
-    <a class="nav-item active" href="#"><span class="nav-icon">✏️</span> Edit Proposal</a>
+    <div class="nav-brand">
+      <img class="nav-brand-logo" src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png" alt="" onerror="this.style.display='none'">
+      <div class="nav-brand-name">TaterDash</div>
+      <div class="nav-brand-sub">MallowFrenchie</div>
+    </div>
+    <span class="nav-label">Create</span>
+    <a class="nav-item" href="/taterdash-app/taterdash/new-invoice.html"><i class="ti ti-file-invoice"></i> New Invoice</a>
+    <a class="nav-item" href="/taterdash-app/admin/new-proposal.php"><i class="ti ti-file-text"></i> New Proposal</a>
+    <span class="nav-label">Manage</span>
+    <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
+    <a class="nav-item active" href="#"><i class="ti ti-file-pencil"></i> Edit Proposal</a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=clients"><i class="ti ti-users"></i> Clients</a>
+    <div class="nav-spacer"></div>
+    <hr class="nav-divider">
+    <div class="nav-profile">
+      <div class="nav-profile-row">
+        <div class="nav-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['td_user'],0,1))) ?></div>
+        <div class="nav-uname"><?= htmlspecialchars($_SESSION['td_user']) ?></div>
+      </div>
+      <a class="nav-profile-link" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
+      <a class="nav-profile-link" href="/taterdash-app/taterdash/logout.php">Logout</a>
+    </div>
   </nav>
 
   <div class="form-panel">

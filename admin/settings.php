@@ -4,146 +4,106 @@ if (empty($_SESSION['td_user'])) {
     header('Location: /taterdash-app/taterdash/login.php');
     exit;
 }
-$username = $_SESSION['td_user'];
+$user = $_SESSION['td_user'];
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Settings — TaterDash</title>
 <link rel="preconnect" href="https://api.fontshare.com">
-<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
-:root {
-    --pink:       #e04d80;
-    --blush:      #faf0f0;
-    --blush-dark: #f5e5e5;
-    --card-rose:  #f2d0dc;
-    --ink:        #111111;
-    --ink-mid:    #555555;
-    --ink-light:  #999999;
-    --border:     #e8e8e8;
-    --white:      #ffffff;
-    --sidebar-w:  220px;
-    --topbar-h:   60px;
-    --radius:     16px;
-}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Satoshi', sans-serif; background: var(--blush); color: var(--ink); min-height: 100vh; }
-
-.topbar {
-    position: fixed; top: 0; left: 0; right: 0;
-    height: var(--topbar-h); background: var(--ink);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 24px; z-index: 200;
-}
-.topbar-logo { font-size: 15px; font-weight: 700; color: var(--white); letter-spacing: .02em; }
-.topbar-logo span { color: var(--pink); }
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
-.tb-btn {
-    display: inline-flex; align-items: center; padding: 8px 16px;
-    border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600;
-    cursor: pointer; text-decoration: none; border: none; transition: opacity .15s;
-}
-.tb-btn:hover { opacity: .85; }
-.tb-btn--ghost { background: rgba(255,255,255,.1); color: var(--white); }
-
-.layout { display: flex; margin-top: var(--topbar-h); min-height: calc(100vh - var(--topbar-h)); }
+body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; -webkit-font-smoothing: antialiased; }
 
 .sidebar {
-    position: fixed; top: var(--topbar-h); left: 0; bottom: 0;
-    width: var(--sidebar-w); background: var(--white);
-    border-right: 1px solid var(--border);
-    padding: 24px 0 0; overflow-y: auto;
-    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0; width: 240px;
+    background: #111111; display: flex; flex-direction: column; overflow-y: auto; z-index: 300;
 }
-.nav-group { margin-bottom: 24px; }
-.nav-label {
-    font-size: 10px; font-weight: 700; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--ink-light);
-    padding: 0 20px; margin-bottom: 6px; display: block;
-}
-.nav-link {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 20px; font-size: 14px; font-weight: 500;
-    color: var(--ink-mid); text-decoration: none;
-    transition: background .12s, color .12s;
-}
-.nav-link:hover, .nav-link.active { background: var(--blush); color: var(--pink); }
-.nav-icon { font-size: 15px; }
-.sidebar-spacer { flex: 1; }
-.sidebar-profile {
-    border-top: 1px solid var(--border);
-    padding: 16px 20px;
-    background: var(--white);
-}
-.profile-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.avatar {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: var(--card-rose); color: var(--pink);
-    font-size: 14px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; text-transform: uppercase;
-}
-.profile-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-.profile-link {
-    display: block; font-size: 12px; font-weight: 500;
-    color: var(--ink-light); text-decoration: none;
-    padding: 5px 0; transition: color .12s;
-}
-.profile-link:hover { color: var(--pink); }
+.nav-brand { padding: 24px 20px 16px; flex-shrink: 0; }
+.nav-brand-logo { height: 40px; width: auto; display: block; margin-bottom: 12px; }
+.nav-brand-name { font-size: 15px; font-weight: 700; color: #ffffff; }
+.nav-brand-sub  { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #e04d80; margin-top: 3px; }
+.nav-label { font-size: 9px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #6b6b6b; padding: 0 20px; margin-top: 24px; display: block; margin-bottom: 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.6); text-decoration: none; border-left: 2px solid transparent; transition: background .12s, color .12s; }
+.nav-item:hover  { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.9); }
+.nav-item.active { color: #ffffff; border-left-color: #e04d80; background: rgba(255,255,255,0.05); }
+.nav-item i { font-size: 16px; }
+.nav-spacer  { flex: 1; }
+.nav-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0 0; }
+.nav-profile { padding: 14px 20px 22px; }
+.nav-profile-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.nav-avatar { width: 32px; height: 32px; border-radius: 50%; background: #f2d0dc; color: #e04d80; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-transform: uppercase; flex-shrink: 0; }
+.nav-uname  { font-size: 13px; font-weight: 500; color: #ffffff; }
+.nav-profile-link { display: block; font-size: 12px; color: #6b6b6b; text-decoration: none; padding: 4px 0; transition: color .12s; }
+.nav-profile-link:hover { color: rgba(255,255,255,0.6); }
 
-.main { margin-left: var(--sidebar-w); flex: 1; padding: 32px; max-width: 800px; }
-.page-title { font-size: 22px; font-weight: 700; margin-bottom: 28px; }
+.topbar {
+    position: fixed; top: 0; left: 240px; right: 0; height: 52px;
+    background: #ffffff; border-bottom: 1px solid #e8e8e8;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; z-index: 200;
+}
+.topbar-title { font-size: 18px; font-weight: 700; color: #191919; }
+.tb-ghost { font-size: 12px; font-weight: 500; color: #6b6b6b; text-decoration: none; padding: 7px 12px; border-radius: 999px; transition: background .12s; }
+.tb-ghost:hover { background: #f5f5f5; }
+
+.main { margin-left: 240px; padding: 52px 0 0; }
+.main-inner { padding: 32px; }
+.page-title { font-size: 28px; font-weight: 300; color: #191919; margin-bottom: 28px; }
 
 .coming-soon {
-    background: var(--white); border-radius: var(--radius);
-    padding: 48px 40px; text-align: center;
+    background: #ffffff; border: 1px solid #e8e8e8;
+    border-radius: 12px; padding: 56px 40px; text-align: center;
 }
-.coming-soon-icon { font-size: 36px; margin-bottom: 16px; }
+.coming-soon-icon  { font-size: 32px; margin-bottom: 16px; }
 .coming-soon-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-.coming-soon-sub   { font-size: 14px; color: var(--ink-light); }
+.coming-soon-sub   { font-size: 14px; color: #6b6b6b; }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-    <div class="topbar-logo">Tater<span>Dash</span></div>
-    <div class="topbar-actions">
-        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/admin/">← Dashboard</a>
-        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
+<nav class="sidebar">
+    <div class="nav-brand">
+        <img class="nav-brand-logo" src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png" alt="" onerror="this.style.display='none'">
+        <div class="nav-brand-name">TaterDash</div>
+        <div class="nav-brand-sub">MallowFrenchie</div>
     </div>
+    <span class="nav-label">Create</span>
+    <a class="nav-item" href="/taterdash-app/taterdash/new-invoice.html"><i class="ti ti-file-invoice"></i> New Invoice</a>
+    <a class="nav-item" href="/taterdash-app/admin/new-proposal.php"><i class="ti ti-file-text"></i> New Proposal</a>
+    <span class="nav-label">Manage</span>
+    <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
+    <a class="nav-item" href="/taterdash-app/admin/?view=clients"><i class="ti ti-users"></i> Clients</a>
+    <div class="nav-spacer"></div>
+    <hr class="nav-divider">
+    <div class="nav-profile">
+        <div class="nav-profile-row">
+            <div class="nav-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($user,0,1))) ?></div>
+            <div class="nav-uname"><?= htmlspecialchars($user) ?></div>
+        </div>
+        <a class="nav-profile-link active" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
+        <a class="nav-profile-link" href="/taterdash-app/taterdash/logout.php">Logout</a>
+    </div>
+</nav>
+
+<div class="topbar">
+    <div class="topbar-title">Settings</div>
+    <a class="tb-ghost" href="/taterdash-app/admin/">← Dashboard</a>
 </div>
 
-<div class="layout">
-    <nav class="sidebar">
-        <div class="nav-group">
-            <span class="nav-label">Create</span>
-            <a class="nav-link" href="/taterdash-app/taterdash/new-invoice.html"><span class="nav-icon">🧾</span> New Invoice</a>
-            <a class="nav-link" href="/taterdash-app/admin/new-proposal.php"><span class="nav-icon">📋</span> New Proposal</a>
-        </div>
-        <div class="nav-group">
-            <span class="nav-label">Manage</span>
-            <a class="nav-link" href="/taterdash-app/admin/"><span class="nav-icon">📊</span> Dashboard</a>
-        </div>
-        <div class="sidebar-spacer"></div>
-        <div class="sidebar-profile">
-            <div class="profile-row">
-                <div class="avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($username, 0, 1))) ?></div>
-                <div class="profile-name"><?= htmlspecialchars($username) ?></div>
-            </div>
-            <a class="profile-link active" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
-        </div>
-    </nav>
-
-    <main class="main">
-        <h1 class="page-title">Settings</h1>
-        <div class="coming-soon">
-            <div class="coming-soon-icon">⚙️</div>
-            <div class="coming-soon-title">Coming soon</div>
-            <div class="coming-soon-sub">Settings will live here — account, branding, notifications.</div>
-        </div>
-    </main>
+<div class="main">
+<div class="main-inner">
+    <h1 class="page-title">Settings</h1>
+    <div class="coming-soon">
+        <div class="coming-soon-icon">⚙️</div>
+        <div class="coming-soon-title">Coming soon</div>
+        <div class="coming-soon-sub">Settings will live here — account, branding, notifications.</div>
+    </div>
+</div>
 </div>
 
 </body>
