@@ -1,17 +1,2 @@
-# TaterDash .gitignore
-
-# NEVER commit real config
-taterdash/config.php
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.swp
-
-# Logs
-*.log
-error_log
