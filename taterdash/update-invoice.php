@@ -53,16 +53,15 @@ try {
     // Update invoice record
     $stmt = $pdo->prepare("
         UPDATE td_invoices SET
-            client_name   = ?,
-            contact_name  = ?,
-            client_email  = ?,
-            issue_date    = ?,
-            due_date      = ?,
-            notes         = ?,
-            total         = ?
+            client_name  = ?,
+            client_email = ?,
+            issue_date   = ?,
+            due_date     = ?,
+            notes        = ?,
+            total        = ?
         WHERE id = ?
     ");
-    $stmt->execute([$client_name, $contact_name, $client_email, $issue_date, $due_date, $notes, $total, $invoice_id]);
+    $stmt->execute([$client_name, $client_email, $issue_date, $due_date, $notes, $total, $invoice_id]);
 
     // Replace line items
     $pdo->prepare("DELETE FROM td_line_items WHERE invoice_id = ?")->execute([$invoice_id]);
