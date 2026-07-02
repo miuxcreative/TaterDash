@@ -13,7 +13,7 @@ $stats = $pdo->query("
     SELECT
         COUNT(*) AS total_count,
         COALESCE(SUM(total), 0) AS total_invoiced,
-        COALESCE(SUM(CASE WHEN status IN ('sent','viewed') THEN total ELSE 0 END), 0) AS outstanding,
+        COALESCE(SUM(CASE WHEN status IN ('draft','sent','viewed') THEN total ELSE 0 END), 0) AS outstanding,
         COALESCE(SUM(CASE WHEN status = 'paid' THEN total ELSE 0 END), 0) AS paid,
         SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS drafts
     FROM td_invoices
@@ -33,17 +33,6 @@ $stmt = $pdo->prepare("SELECT * FROM td_invoices $where_sql ORDER BY created_at 
 $stmt->execute($params);
 $invoices = $stmt->fetchAll();
 
-// ── Mark as paid action ──
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    $id = intval($_POST['id']);
-    if ($_POST['action'] === 'mark_paid') {
-        $pdo->prepare("UPDATE td_invoices SET status='paid' WHERE id=?")->execute([$id]);
-    } elseif ($_POST['action'] === 'delete') {
-        $pdo->prepare("DELETE FROM td_invoices WHERE id=?")->execute([$id]);
-    }
-    header('Location: ' . $_SERVER['PHP_SELF']);
-    exit;
-}
 
 function fmt_money($n) { return '$' . number_format(floatval($n), 2); }
 function fmt_date($d)  { return $d ? date('M j, Y', strtotime($d)) : '—'; }
@@ -432,7 +421,7 @@ $badge_map = [
       <div class="stat-card">
         <div class="stat-label">Outstanding</div>
         <div class="stat-value"><?= fmt_money($stats['outstanding']) ?></div>
-        <div class="stat-sub">Sent &amp; viewed</div>
+        <div class="stat-sub">Draft, sent &amp; viewed</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Paid</div>
@@ -511,21 +500,13 @@ $badge_map = [
               <button class="menu-btn" onclick="toggleMenu(<?= $inv['id'] ?>, event)">⋯</button>
               <div class="dropdown" id="menu-<?= $inv['id'] ?>">
                 <a href="/invoice/?id=<?= $inv['id'] ?>" target="_blank">Open invoice</a>
-                <a href="#" onclick="copyLink('<?= SITE_URL ?>/invoice/?id=<?= $inv['id'] ?>'); return false;">Copy link</a>
+                <a href="#" onclick="copyLink(<?= $inv['id'] ?>, '<?= SITE_URL ?>/invoice/?id=<?= $inv['id'] ?>'); return false;">Copy link</a>
                 <?php if ($inv['status'] !== 'paid'): ?>
                 <div class="dropdown-divider"></div>
-                <form method="POST" style="display:contents;">
-                  <input type="hidden" name="id" value="<?= $inv['id'] ?>">
-                  <input type="hidden" name="action" value="mark_paid">
-                  <button type="submit">Mark as paid</button>
-                </form>
+                <button onclick="markPaid(<?= $inv['id'] ?>)">Mark as paid</button>
                 <?php endif; ?>
                 <div class="dropdown-divider"></div>
-                <form method="POST" style="display:contents;" onsubmit="return confirm('Delete this invoice?')">
-                  <input type="hidden" name="id" value="<?= $inv['id'] ?>">
-                  <input type="hidden" name="action" value="delete">
-                  <button type="submit" class="danger">Delete</button>
-                </form>
+                <button class="danger" onclick="deleteInvoice(<?= $inv['id'] ?>)">Delete</button>
               </div>
             </td>
           </tr>
@@ -549,9 +530,45 @@ $badge_map = [
   document.addEventListener('click', () => {
     document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
   });
-  function copyLink(url) {
-    navigator.clipboard.writeText(url);
-    alert('Link copied!');
+
+  async function copyLink(id, url) {
+    await navigator.clipboard.writeText(url);
+    await fetch('/taterdash-app/taterdash/update-status.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: id, status: 'sent' })
+    });
+    showToast('Link copied — invoice marked as Sent');
+    setTimeout(() => location.reload(), 1200);
+  }
+
+  async function markPaid(id) {
+    await fetch('/taterdash-app/taterdash/update-status.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: id, status: 'paid' })
+    });
+    showToast('Invoice marked as Paid');
+    setTimeout(() => location.reload(), 1000);
+  }
+
+  async function deleteInvoice(id) {
+    if (!confirm('Delete this invoice? This cannot be undone.')) return;
+    await fetch('/taterdash-app/taterdash/update-status.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: id, status: '_delete' })
+    });
+    document.querySelector(`tr[data-id="${id}"]`)?.remove();
+    location.reload();
+  }
+
+  function showToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
   }
 </script>
 </body>
