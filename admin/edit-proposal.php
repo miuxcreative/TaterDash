@@ -44,12 +44,15 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
     }
     html,body{height:100%;}
     body{font-family:'Satoshi',sans-serif;background:#f0f0f0;color:var(--ink);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;}
-    .topbar{background:var(--dark);padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-    .topbar-brand{display:flex;align-items:center;gap:10px;}
-    .topbar-logo{height:28px;opacity:.9;}
-    .topbar-name{font-size:13px;font-weight:700;color:var(--white);letter-spacing:-.01em;}
-    .topbar-name span{color:var(--pink);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;margin-left:8px;opacity:.8;}
-    .layout{display:grid;grid-template-columns:var(--sidebar) 1fr 340px;flex:1;overflow:hidden;height:calc(100vh - 52px);}
+    .topbar{background:var(--dark);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .topbar-logo{font-size:15px;font-weight:700;color:var(--white);letter-spacing:.02em;}
+    .topbar-logo span{color:var(--pink);}
+    .topbar-actions{display:flex;align-items:center;gap:10px;}
+    .tb-btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:999px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;border:none;transition:opacity .15s;}
+    .tb-btn:hover{opacity:.85;}
+    .tb-btn--pink{background:var(--pink);color:var(--white);}
+    .tb-btn--ghost{background:rgba(255,255,255,.1);color:var(--white);}
+    .layout{display:grid;grid-template-columns:var(--sidebar) 1fr 340px;flex:1;overflow:hidden;height:calc(100vh - 60px);}
     .nav{background:var(--white);border-right:1px solid var(--border);padding:24px 0;overflow-y:auto;}
     .nav-label{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-light);padding:0 20px;margin-bottom:6px;margin-top:20px;}
     .nav-label:first-child{margin-top:0;}
@@ -145,12 +148,10 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 <body>
 
 <div class="topbar">
-  <div class="topbar-brand">
-    <img class="topbar-logo" src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png" alt="" onerror="this.style.display='none'">
-    <div class="topbar-name">TaterDash <span>by MallowFrenchie</span></div>
-  </div>
-  <div>
-    <a href="/taterdash-app/admin/?tab=proposals" class="btn btn-ghost" style="padding:7px 18px;font-size:11px;text-decoration:none;">← Dashboard</a>
+  <div class="topbar-logo">Tater<span>Dash</span></div>
+  <div class="topbar-actions">
+    <a class="tb-btn tb-btn--ghost" href="/taterdash-app/admin/">← Dashboard</a>
+    <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
   </div>
 </div>
 
