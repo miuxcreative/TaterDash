@@ -1,2 +1,5 @@
 .DS_Store
 Thumbs.db
+
+# Never commit real config
+taterdash/config.php
