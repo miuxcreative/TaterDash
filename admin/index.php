@@ -371,6 +371,78 @@ $badge_map = [
       color: var(--ink-light);
     }
     .empty-state p { font-size: 14px; margin-bottom: 16px; }
+
+    /* ── MODALS ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(17,17,17,0.45);
+      backdrop-filter: blur(3px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .td-modal {
+      background: var(--white);
+      border-radius: 0 0 20px 20px;
+      box-shadow: 0 2px 0 #e8e0e0, 0 16px 56px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 360px;
+      overflow: hidden;
+      animation: modalIn 0.18s ease;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .modal-bar { height: 3px; background: linear-gradient(90deg, var(--pink), var(--card-rose)); }
+    .modal-body { padding: 24px 24px 20px; }
+    .modal-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; margin-bottom: 14px;
+    }
+    .modal-icon.danger { background: #fdf0f4; }
+    .modal-icon.info   { background: var(--blush); }
+    .modal-title { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 5px; }
+    .modal-msg   { font-size: 13px; color: var(--ink-mid); line-height: 1.55; }
+    .modal-actions { display: flex; gap: 8px; padding: 0 24px 22px; }
+    .modal-actions.single .mbtn { flex: 1; }
+    .mbtn {
+      font-family: 'Satoshi', sans-serif;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 11px 18px; border-radius: 999px; border: none;
+      cursor: pointer; flex: 1; transition: all 0.15s;
+    }
+    .mbtn-cancel  { background: #f5f0f0; color: var(--ink-mid); }
+    .mbtn-cancel:hover { background: #ece5e5; color: var(--ink); }
+    .mbtn-danger  { background: var(--pink); color: var(--white); }
+    .mbtn-danger:hover { background: #c83870; }
+    .mbtn-primary { background: var(--dark); color: var(--white); }
+    .mbtn-primary:hover { background: #333; }
+
+    /* ── TOAST ── */
+    .td-toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      background: var(--dark); color: var(--white);
+      border-radius: 14px; padding: 13px 18px;
+      display: flex; align-items: flex-start; gap: 11px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 1100; min-width: 220px; max-width: 340px;
+      opacity: 0; transition: all 0.2s ease;
+      pointer-events: none;
+    }
+    .td-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    .toast-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); margin-top: 4px; flex-shrink: 0; }
+    .toast-text { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.85); flex: 1; }
+    .toast-text strong { display: block; color: #fff; font-weight: 600; margin-bottom: 1px; }
+    .toast-close { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 15px; padding: 0; line-height: 1; }
+    .toast-close:hover { color: rgba(255,255,255,0.7); }
   </style>
 </head>
 <body>
@@ -528,6 +600,29 @@ $badge_map = [
   </div>
 </div>
 
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="td-modal">
+    <div class="modal-bar"></div>
+    <div class="modal-body">
+      <div class="modal-icon danger">🗑️</div>
+      <div class="modal-title">Delete invoice?</div>
+      <div class="modal-msg">This cannot be undone. The invoice and all its line items will be permanently removed.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal('modal-delete')">Cancel</button>
+      <button class="mbtn mbtn-danger" id="modal-delete-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="td-toast" id="td-toast">
+  <div class="toast-dot"></div>
+  <div class="toast-text" id="td-toast-text"><strong id="td-toast-title"></strong><span id="td-toast-sub"></span></div>
+  <button class="toast-close" onclick="hideToast()">✕</button>
+</div>
+
 <script>
   function toggleMenu(id, e) {
     e.stopPropagation();
@@ -540,6 +635,13 @@ $badge_map = [
     document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
   });
 
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+  }
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+  });
+
   async function copyLink(id, url) {
     await navigator.clipboard.writeText(url);
     await fetch('/taterdash-app/taterdash/update-status.php', {
@@ -547,8 +649,8 @@ $badge_map = [
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoice_id: id, status: 'sent' })
     });
-    showToast('Link copied — invoice marked as Sent');
-    setTimeout(() => location.reload(), 1200);
+    showToast('Link copied', 'Invoice marked as Sent');
+    setTimeout(() => location.reload(), 1400);
   }
 
   async function markPaid(id) {
@@ -557,27 +659,36 @@ $badge_map = [
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoice_id: id, status: 'paid' })
     });
-    showToast('Invoice marked as Paid');
-    setTimeout(() => location.reload(), 1000);
+    showToast('Marked as Paid', '');
+    setTimeout(() => location.reload(), 1200);
   }
 
-  async function deleteInvoice(id) {
-    if (!confirm('Delete this invoice? This cannot be undone.')) return;
-    await fetch('/taterdash-app/taterdash/update-status.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoice_id: id, status: '_delete' })
-    });
-    document.querySelector(`tr[data-id="${id}"]`)?.remove();
-    location.reload();
+  function deleteInvoice(id) {
+    const overlay = document.getElementById('modal-delete');
+    overlay.classList.add('open');
+    document.getElementById('modal-delete-confirm').onclick = async () => {
+      overlay.classList.remove('open');
+      await fetch('/taterdash-app/taterdash/update-status.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_id: id, status: '_delete' })
+      });
+      location.reload();
+    };
   }
 
-  function showToast(msg) {
-    const t = document.createElement('div');
-    t.textContent = msg;
-    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
+  let toastTimer;
+  function showToast(title, sub) {
+    document.getElementById('td-toast-title').textContent = title;
+    document.getElementById('td-toast-sub').textContent = sub;
+    const t = document.getElementById('td-toast');
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+  function hideToast() {
+    clearTimeout(toastTimer);
+    document.getElementById('td-toast').classList.remove('show');
   }
 </script>
 </body>
