@@ -412,7 +412,7 @@ $badge_map = [
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:12px;color:var(--ink-mid);">Hi, <?= htmlspecialchars($_SESSION['td_user']) ?></span>
       <a class="btn btn-primary" href="/taterdash-app/taterdash/new-invoice.html">+ New Invoice</a>
-      <a href="/taterdash-app/logout.php" style="font-size:12px;color:var(--ink-mid);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:999px;">Log out</a>
+      <a href="/taterdash-app/taterdash/logout.php" style="font-size:12px;color:var(--ink-mid);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:999px;">Log out</a>
     </div>
   </div>
 
