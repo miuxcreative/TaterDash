@@ -5,7 +5,7 @@
 // mallowfrenchie.com/invoice/?id=1
 // ═══════════════════════════════════════════
 
-require_once __DIR__ . '/../taterdash/config.php';
+require_once __DIR__ . '/../taterdash-app/taterdash/config.php';
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
