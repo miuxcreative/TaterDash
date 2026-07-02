@@ -639,6 +639,12 @@ body {
         </div>
     </div>
 
+    <!-- Table header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div></div>
+        <button onclick="location.reload()" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;border:1px solid #e8e8e8;background:#fff;font-family:inherit;font-size:12px;font-weight:600;color:#6b6b6b;cursor:pointer;transition:all .12s" onmouseover="this.style.borderColor='#191919';this.style.color='#191919'" onmouseout="this.style.borderColor='#e8e8e8';this.style.color='#6b6b6b'"><i class="ti ti-refresh" style="font-size:14px"></i> Refresh</button>
+    </div>
+
     <!-- Filter tabs -->
     <div class="filter-tabs"
          data-intro="Use filters to focus — pick Invoices or Proposals for a sub-filter by status." data-step="5">
