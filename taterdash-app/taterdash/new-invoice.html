@@ -339,7 +339,7 @@
     <div class="topbar-name">TaterDash <span>by MallowFrenchie</span></div>
   </div>
   <div class="topbar-actions">
-    <button class="btn btn-ghost" style="padding:7px 18px; font-size:11px;" onclick="window.location.href='/taterdash/admin/'">Dashboard</button>
+    <button class="btn btn-ghost" style="padding:7px 18px; font-size:11px;" onclick="window.location.href='/taterdash-app/admin/'">Dashboard</button>
   </div>
 </div>
 
@@ -355,13 +355,13 @@
       <span class="nav-icon">📋</span> New Proposal
     </a>
     <div class="nav-label">Manage</div>
-    <a class="nav-item" href="/taterdash/admin/">
+    <a class="nav-item" href="/taterdash-app/admin/">
       <span class="nav-icon">📊</span> Dashboard
     </a>
-    <a class="nav-item" href="/taterdash/admin/?view=invoices">
+    <a class="nav-item" href="/taterdash-app/admin/?view=invoices">
       <span class="nav-icon">🧾</span> All Invoices
     </a>
-    <a class="nav-item" href="/taterdash/admin/?view=clients">
+    <a class="nav-item" href="/taterdash-app/admin/?view=clients">
       <span class="nav-icon">👥</span> Clients
     </a>
   </nav>
@@ -596,7 +596,7 @@
     };
 
     try {
-      const res  = await fetch('/taterdash/save-invoice.php', {
+      const res  = await fetch('/taterdash-app/taterdash/save-invoice.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
