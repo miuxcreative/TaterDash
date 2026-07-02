@@ -33,10 +33,11 @@ function db_connect() {
 
 function generate_invoice_num($pdo) {
     $year = date('Y');
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM td_invoices WHERE YEAR(created_at) = ?");
-    $stmt->execute([$year]);
-    $count = $stmt->fetchColumn();
-    return 'INV-' . $year . '-' . str_pad($count + 1, 3, '0', STR_PAD_LEFT);
+    $prefix = 'INV-' . $year . '-%';
+    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(invoice_num, '-', -1) AS UNSIGNED)) FROM td_invoices WHERE invoice_num LIKE ?");
+    $stmt->execute([$prefix]);
+    $max = intval($stmt->fetchColumn());
+    return 'INV-' . $year . '-' . str_pad($max + 1, 3, '0', STR_PAD_LEFT);
 }
 
 function generate_slug($client_name) {
