@@ -139,7 +139,9 @@ function row_actions(array $row): string {
 <title>TaterDash</title>
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/introjs.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/intro.min.js"></script>
 <style>
 :root {
     --pink:       #e04d80;
@@ -203,8 +205,10 @@ body {
     width: var(--sidebar-w);
     background: var(--white);
     border-right: 1px solid var(--border);
-    padding: 24px 0;
+    padding: 24px 0 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 .nav-group { margin-bottom: 24px; }
 .nav-label {
@@ -383,6 +387,47 @@ body {
     z-index: 600; white-space: nowrap;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Sidebar profile */
+.sidebar-spacer { flex: 1; }
+.sidebar-profile {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    background: var(--white);
+}
+.profile-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+}
+.avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--card-rose); color: var(--pink);
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; text-transform: uppercase;
+}
+.profile-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.profile-link {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--ink-light); text-decoration: none;
+    padding: 5px 0; transition: color .12s;
+}
+.profile-link:hover { color: var(--pink); }
+
+/* Help button */
+.tb-btn--help { background: var(--card-rose); color: var(--ink); }
+
+/* Intro.js theme overrides */
+.introjs-tooltip { font-family: 'Satoshi', sans-serif !important; border-radius: 12px !important; }
+.introjs-button  { font-family: 'Satoshi', sans-serif !important; border-radius: 999px !important; }
+.introjs-nextbutton, .introjs-donebutton {
+    background: var(--pink) !important; color: #fff !important;
+    border-color: var(--pink) !important; text-shadow: none !important;
+}
+.introjs-prevbutton { text-shadow: none !important; }
+.introjs-progressbar { background: var(--pink) !important; }
 </style>
 </head>
 <body>
@@ -390,8 +435,11 @@ body {
 <div class="topbar">
     <div class="topbar-logo">Tater<span>Dash</span></div>
     <div class="topbar-actions">
-        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/new-invoice.html">+ Invoice</a>
-        <a class="tb-btn tb-btn--pink"  href="/taterdash-app/admin/new-proposal.php">+ Proposal</a>
+        <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/new-invoice.html"
+           data-intro="Create a new invoice — fill in client details, add your deliverables, and generate a link to send." data-step="1">+ Invoice</a>
+        <a class="tb-btn tb-btn--pink"  href="/taterdash-app/admin/new-proposal.php"
+           data-intro="Send a proposal before invoicing — client can review the package and sign directly from the link." data-step="2">+ Proposal</a>
+        <button class="tb-btn tb-btn--help" onclick="startTour()">?</button>
         <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
     </div>
 </div>
@@ -407,6 +455,14 @@ body {
             <span class="nav-label">Manage</span>
             <a class="nav-link active" href="/taterdash-app/admin/"><span class="nav-icon">📊</span> Dashboard</a>
         </div>
+        <div class="sidebar-spacer"></div>
+        <div class="sidebar-profile">
+            <div class="profile-row">
+                <div class="avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($_SESSION['td_user'], 0, 1))) ?></div>
+                <div class="profile-name"><?= htmlspecialchars($_SESSION['td_user']) ?></div>
+            </div>
+            <a class="profile-link" href="/taterdash-app/admin/settings.php">⚙ Settings</a>
+        </div>
     </nav>
 
     <main class="main">
@@ -416,7 +472,7 @@ body {
         </div>
 
         <!-- Stats -->
-        <div class="stats-row">
+        <div class="stats-row" data-intro="Your year at a glance — updates automatically as invoices are paid and proposals are signed." data-step="3">
             <div class="stat-card">
                 <div class="stat-bar" style="background:var(--card-sand)"></div>
                 <div class="stat-body">
@@ -448,7 +504,7 @@ body {
         </div>
 
         <!-- Chart -->
-        <div class="chart-section">
+        <div class="chart-section" data-intro="See what's been sent vs paid each month. Faint colors = sent, solid colors = paid or signed." data-step="4">
             <div class="chart-header">
                 <div class="chart-title">Monthly Overview <?= $year ?></div>
                 <div class="chart-legend">
@@ -464,7 +520,7 @@ body {
         </div>
 
         <!-- Filter + Table -->
-        <div class="filter-tabs">
+        <div class="filter-tabs" data-intro="All active shows only what needs your attention — sent and viewed. Use filters to see paid or drafts." data-step="5">
             <button class="filter-tab active" data-filter="all"       onclick="filterTable('all')">All</button>
             <button class="filter-tab"        data-filter="active"    onclick="filterTable('active')">Active</button>
             <button class="filter-tab"        data-filter="invoices"  onclick="filterTable('invoices')">Invoices</button>
@@ -489,10 +545,11 @@ body {
                 <tbody id="activityBody">
 <?php if (empty($activity)): ?>
                     <tr class="empty-row"><td colspan="7">No activity yet — create your first invoice or proposal.</td></tr>
-<?php else: foreach ($activity as $row):
+<?php else: foreach ($activity as $i => $row):
     $s    = htmlspecialchars($row['status']);
     $type = $row['row_type'];
     $date = date('M j, Y', strtotime($row['created_at']));
+    $first = ($i === 0);
 ?>
                     <tr class="activity-row" data-type="<?= $type ?>" data-status="<?= $s ?>">
                         <td><span class="type-pill type-pill--<?= $type ?>"><?= ucfirst($type) ?></span></td>
@@ -504,9 +561,9 @@ body {
                         </td>
                         <td><span class="ref-num"><?= htmlspecialchars($row['ref_num']) ?></span></td>
                         <td><span class="date-cell"><?= $date ?></span></td>
-                        <td><?= status_badge($row['status']) ?></td>
+                        <td <?= $first ? 'data-intro="Status updates automatically — sent when you copy the link, viewed when the client opens it." data-step="6"' : '' ?>><?= status_badge($row['status']) ?></td>
                         <td class="amount-cell"><?= fmt_money((float)$row['total']) ?></td>
-                        <td class="actions-cell"><?= row_actions($row) ?></td>
+                        <td class="actions-cell" <?= $first ? 'data-intro="Copy link sends the client their view. Signed proposals get a Create Invoice button — one click pre-fills the invoice from the proposal." data-step="7"' : '' ?>><?= row_actions($row) ?></td>
                     </tr>
 <?php endforeach; endif; ?>
                 </tbody>
@@ -667,6 +724,18 @@ async function createInvoiceFromProposal(proposalId) {
             showToast('Error: ' + (d.error || 'Failed to create invoice.'));
         }
     } catch (e) { showToast('Network error.'); }
+}
+
+// Help tour
+function startTour() {
+    introJs().setOptions({
+        nextLabel:          'Next →',
+        prevLabel:          '← Back',
+        doneLabel:          'Got it',
+        showProgress:       true,
+        showBullets:        false,
+        exitOnOverlayClick: true,
+    }).start();
 }
 
 // Toast
