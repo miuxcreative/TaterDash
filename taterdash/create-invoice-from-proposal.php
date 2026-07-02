@@ -53,6 +53,8 @@ try {
         $proposal['total'],
     ]);
 
+    log_event($pdo, 'from_proposal', 'invoice', $invoice_id, $invoice_num, $proposal['client_name'], $proposal['total']);
+
     echo json_encode([
         'success'     => true,
         'invoice_id'  => $invoice_id,

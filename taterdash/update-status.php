@@ -25,10 +25,21 @@ if (!$id || !in_array($status, $allowed)) {
 
 $pdo = db_connect();
 
+$inv = $pdo->prepare("SELECT invoice_num, client_name, total FROM td_invoices WHERE id = ?");
+$inv->execute([$id]);
+$invoice = $inv->fetch();
+
+if (!$invoice) {
+    http_response_code(404);
+    die(json_encode(['error' => 'Invoice not found']));
+}
+
 if ($status === '_delete') {
+    log_event($pdo, 'deleted', 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
     $pdo->prepare("DELETE FROM td_invoices WHERE id = ?")->execute([$id]);
     echo json_encode(['success' => true, 'invoice_id' => $id, 'deleted' => true]);
 } else {
     $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ?")->execute([$status, $id]);
+    log_event($pdo, $status, 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
     echo json_encode(['success' => true, 'invoice_id' => $id, 'status' => $status]);
 }

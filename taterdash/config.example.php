@@ -49,6 +49,13 @@ function generate_proposal_num($pdo) {
     return 'PROP-' . $year . '-' . str_pad($max + 1, 3, '0', STR_PAD_LEFT);
 }
 
+function log_event(PDO $pdo, string $event_type, string $entity_type, int $entity_id, string $entity_num, string $entity_name, ?float $amount = null): void {
+    $pdo->prepare("
+        INSERT INTO td_activity (event_type, entity_type, entity_id, entity_num, entity_name, amount)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ")->execute([$event_type, $entity_type, $entity_id, $entity_num, $entity_name, $amount]);
+}
+
 function generate_slug($client_name) {
     $slug = strtolower(trim($client_name));
     $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);

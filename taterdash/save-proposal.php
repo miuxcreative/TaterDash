@@ -53,6 +53,8 @@ try {
     ]);
     $proposal_id = $pdo->lastInsertId();
 
+    log_event($pdo, 'created', 'proposal', $proposal_id, $proposal_num, $client_name);
+
     echo json_encode([
         'success'      => true,
         'proposal_id'  => $proposal_id,

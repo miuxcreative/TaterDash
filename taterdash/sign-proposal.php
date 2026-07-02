@@ -50,6 +50,8 @@ try {
     $pdo->prepare("UPDATE td_proposals SET status = 'signed' WHERE id = ?")
         ->execute([$proposal_id]);
 
+    log_event($pdo, 'signed', 'proposal', $proposal_id, $proposal['proposal_num'], $proposal['client_name']);
+
     echo json_encode([
         'success'    => true,
         'signed_at'  => $signed_at,

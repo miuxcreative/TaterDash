@@ -107,6 +107,8 @@ try {
 
     $pdo->commit();
 
+    log_event($pdo, 'created', 'invoice', $invoice_id, $invoice_num, $data['client_name'], $total);
+
     // ── Return success with client URL ──
     echo json_encode([
         'success'     => true,
