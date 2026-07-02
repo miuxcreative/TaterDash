@@ -238,7 +238,7 @@ body {
     gap: 16px;
     margin-bottom: 28px;
 }
-.stat-card { background: var(--white); border-radius: var(--radius); overflow: hidden; }
+.stat-card { background: var(--white); border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
 .stat-bar  { height: 4px; }
 .stat-body { padding: 18px 20px 20px; }
 .stat-label {
