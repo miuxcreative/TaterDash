@@ -581,6 +581,7 @@ $badge_map = [
               <button class="menu-btn" onclick="toggleMenu(<?= $inv['id'] ?>, event)">⋯</button>
               <div class="dropdown" id="menu-<?= $inv['id'] ?>">
                 <a href="/invoice/?id=<?= $inv['id'] ?>" target="_blank">Open invoice</a>
+                <a href="/taterdash-app/admin/edit-invoice.php?id=<?= $inv['id'] ?>">Edit</a>
                 <a href="#" onclick="copyLink(<?= $inv['id'] ?>, '<?= SITE_URL ?>/invoice/?id=<?= $inv['id'] ?>'); return false;">Copy link</a>
                 <?php if ($inv['status'] !== 'paid'): ?>
                 <div class="dropdown-divider"></div>
