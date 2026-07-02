@@ -4,6 +4,9 @@
 // /public_html/taterdash-app/admin/index.php
 // ═══════════════════════════════════════════
 
+session_start();
+require_once __DIR__ . '/../taterdash/auth.php';
+require_login();
 require_once __DIR__ . '/../taterdash/config.php';
 
 $pdo = db_connect();
@@ -406,7 +409,11 @@ $badge_map = [
 <div class="main">
   <div class="topbar">
     <div class="topbar-title">Dashboard</div>
-    <a class="btn btn-primary" href="/taterdash-app/taterdash/new-invoice.html">+ New Invoice</a>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:12px;color:var(--ink-mid);">Hi, <?= htmlspecialchars($_SESSION['td_user']) ?></span>
+      <a class="btn btn-primary" href="/taterdash-app/taterdash/new-invoice.html">+ New Invoice</a>
+      <a href="/taterdash-app/logout.php" style="font-size:12px;color:var(--ink-mid);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:999px;">Log out</a>
+    </div>
   </div>
 
   <div class="content">

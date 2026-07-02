@@ -1,11 +1,11 @@
 # TaterDash — Security
 # Place in /public_html/taterdash/
 
-# Block direct access to config
-<Files "config.php">
+# Block direct access to sensitive files
+<FilesMatch "^(config|auth)\.php$">
   Order allow,deny
   Deny from all
-</Files>
+</FilesMatch>
 
 # Block directory listing
 Options -Indexes
