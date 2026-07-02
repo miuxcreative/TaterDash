@@ -13,7 +13,9 @@ require_once __DIR__ . '/../taterdash/config.php';
 
 $pdo = db_connect();
 
-// ── Stat cards ──
+$tab = isset($_GET['tab']) && $_GET['tab'] === 'proposals' ? 'proposals' : 'invoices';
+
+// ── Invoice stats ──
 $stats = $pdo->query("
     SELECT
         COUNT(*) AS total_count,
@@ -24,20 +26,28 @@ $stats = $pdo->query("
     FROM td_invoices
 ")->fetch();
 
-// ── Filters ──
+// ── Invoice filters ──
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $search        = isset($_GET['q'])      ? trim($_GET['q']) : '';
-
 $where  = [];
 $params = [];
 if ($status_filter) { $where[] = 'status = ?'; $params[] = $status_filter; }
 if ($search)        { $where[] = '(client_name LIKE ? OR invoice_num LIKE ?)'; $params[] = "%$search%"; $params[] = "%$search%"; }
 $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-
 $stmt = $pdo->prepare("SELECT * FROM td_invoices $where_sql ORDER BY created_at DESC");
 $stmt->execute($params);
 $invoices = $stmt->fetchAll();
 
+// ── Proposal data ──
+$proposals = $pdo->query("SELECT p.*, pk.name AS package_name FROM td_proposals p LEFT JOIN td_packages pk ON p.package_id = pk.id ORDER BY p.created_at DESC")->fetchAll();
+$prop_stats = $pdo->query("
+    SELECT
+        COUNT(*) AS total_count,
+        SUM(CASE WHEN status IN ('draft','sent','viewed') THEN 1 ELSE 0 END) AS open_count,
+        SUM(CASE WHEN status = 'signed' THEN 1 ELSE 0 END) AS signed_count,
+        COALESCE(SUM(CASE WHEN status = 'signed' THEN total ELSE 0 END), 0) AS signed_value
+    FROM td_proposals
+")->fetch();
 
 function fmt_money($n) { return '$' . number_format(floatval($n), 2); }
 function fmt_date($d)  { return $d ? date('M j, Y', strtotime($d)) : '—'; }
@@ -47,6 +57,8 @@ $badge_map = [
     'sent'   => ['bg' => '#e8f0fe', 'color' => '#1a56db', 'label' => 'Sent'],
     'viewed' => ['bg' => '#fef3c7', 'color' => '#92400e', 'label' => 'Viewed'],
     'paid'   => ['bg' => '#dcfce7', 'color' => '#166534', 'label' => 'Paid'],
+    'signed' => ['bg' => '#dcfce7', 'color' => '#166534', 'label' => 'Signed'],
+    'expired'=> ['bg' => '#f0f0f0', 'color' => '#9b9b9b', 'label' => 'Expired'],
 ];
 ?>
 <!DOCTYPE html>
@@ -372,6 +384,29 @@ $badge_map = [
     }
     .empty-state p { font-size: 14px; margin-bottom: 16px; }
 
+    /* ── TABS ── */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      background: var(--white);
+      border-radius: 12px 12px 0 0;
+      padding: 0 4px;
+    }
+    .tab-btn {
+      font-family: 'Satoshi', sans-serif;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--ink-light);
+      padding: 13px 20px; border: none; background: none;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      cursor: pointer; transition: all 0.15s; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .tab-btn:hover { color: var(--ink); }
+    .tab-btn.active { color: var(--pink); border-bottom-color: var(--pink); }
+    .tab-count { background: var(--blush); border-radius: 999px; padding: 1px 7px; font-size: 10px; color: var(--ink-mid); font-weight: 700; }
+
     /* ── MODALS ── */
     .modal-overlay {
       display: none;
@@ -462,7 +497,7 @@ $badge_map = [
     <a class="nav-item" href="/taterdash-app/taterdash/new-invoice.html">
       <span class="nav-icon">📄</span> New Invoice
     </a>
-    <a class="nav-item" href="#">
+    <a class="nav-item" href="/taterdash-app/admin/new-proposal.php">
       <span class="nav-icon">📋</span> New Proposal
     </a>
     <div class="nav-label" style="margin-top:16px;">Manage</div>
@@ -485,6 +520,7 @@ $badge_map = [
     <div class="topbar-title">Dashboard</div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:12px;color:var(--ink-mid);">Hi, <?= htmlspecialchars($_SESSION['td_user']) ?></span>
+      <a class="btn btn-primary" href="/taterdash-app/admin/new-proposal.php" style="background:#555;">+ New Proposal</a>
       <a class="btn btn-primary" href="/taterdash-app/taterdash/new-invoice.html">+ New Invoice</a>
       <a href="/taterdash-app/taterdash/logout.php" style="font-size:12px;color:var(--ink-mid);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:999px;">Log out</a>
     </div>
@@ -493,6 +529,7 @@ $badge_map = [
   <div class="content">
 
     <!-- STAT CARDS -->
+    <?php if ($tab === 'invoices'): ?>
     <div class="stats">
       <div class="stat-card">
         <div class="stat-label">Total Invoiced</div>
@@ -515,28 +552,63 @@ $badge_map = [
         <div class="stat-sub">Not sent yet</div>
       </div>
     </div>
-
-    <!-- TOOLBAR -->
-    <form method="GET" class="toolbar">
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" name="q" placeholder="Search client or invoice #" value="<?= htmlspecialchars($search) ?>">
+    <?php else: ?>
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Proposals</div>
+        <div class="stat-value" style="color:var(--ink);"><?= intval($prop_stats['total_count']) ?></div>
+        <div class="stat-sub">All time</div>
       </div>
-      <select name="status" class="filter-select" onchange="this.form.submit()">
-        <option value="">All Statuses</option>
-        <option value="draft"  <?= $status_filter === 'draft'  ? 'selected' : '' ?>>Draft</option>
-        <option value="sent"   <?= $status_filter === 'sent'   ? 'selected' : '' ?>>Sent</option>
-        <option value="viewed" <?= $status_filter === 'viewed' ? 'selected' : '' ?>>Viewed</option>
-        <option value="paid"   <?= $status_filter === 'paid'   ? 'selected' : '' ?>>Paid</option>
-      </select>
-      <button type="submit" class="btn btn-primary" style="padding:9px 16px;">Search</button>
-      <?php if ($search || $status_filter): ?>
-        <a href="/taterdash-app/admin/" style="font-size:12px;color:var(--ink-mid);text-decoration:none;">✕ Clear</a>
-      <?php endif; ?>
-    </form>
+      <div class="stat-card">
+        <div class="stat-label">Open</div>
+        <div class="stat-value"><?= intval($prop_stats['open_count']) ?></div>
+        <div class="stat-sub">Draft, sent &amp; viewed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Signed</div>
+        <div class="stat-value" style="color:#166534;"><?= intval($prop_stats['signed_count']) ?></div>
+        <div class="stat-sub">Accepted</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Signed Value</div>
+        <div class="stat-value" style="color:#166534;"><?= fmt_money($prop_stats['signed_value']) ?></div>
+        <div class="stat-sub">Revenue from signed</div>
+      </div>
+    </div>
+    <?php endif; ?>
 
-    <!-- TABLE -->
+    <!-- TABS + TABLE WRAPPER -->
     <div class="table-wrap">
+      <div class="tab-bar">
+        <a class="tab-btn <?= $tab === 'invoices' ? 'active' : '' ?>" href="/taterdash-app/admin/?tab=invoices">
+          🧾 Invoices <span class="tab-count"><?= $stats['total_count'] ?></span>
+        </a>
+        <a class="tab-btn <?= $tab === 'proposals' ? 'active' : '' ?>" href="/taterdash-app/admin/?tab=proposals">
+          📋 Proposals <span class="tab-count"><?= $prop_stats['total_count'] ?></span>
+        </a>
+      </div>
+
+      <?php if ($tab === 'invoices'): ?>
+      <!-- INVOICE TOOLBAR -->
+      <form method="GET" class="toolbar" style="padding:0 16px 12px;">
+        <input type="hidden" name="tab" value="invoices">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" name="q" placeholder="Search client or invoice #" value="<?= htmlspecialchars($search) ?>">
+        </div>
+        <select name="status" class="filter-select" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          <option value="draft"  <?= $status_filter === 'draft'  ? 'selected' : '' ?>>Draft</option>
+          <option value="sent"   <?= $status_filter === 'sent'   ? 'selected' : '' ?>>Sent</option>
+          <option value="viewed" <?= $status_filter === 'viewed' ? 'selected' : '' ?>>Viewed</option>
+          <option value="paid"   <?= $status_filter === 'paid'   ? 'selected' : '' ?>>Paid</option>
+        </select>
+        <button type="submit" class="btn btn-primary" style="padding:9px 16px;">Search</button>
+        <?php if ($search || $status_filter): ?>
+          <a href="/taterdash-app/admin/" style="font-size:12px;color:var(--ink-mid);text-decoration:none;">✕ Clear</a>
+        <?php endif; ?>
+      </form>
+
       <?php if (empty($invoices)): ?>
         <div class="empty-state">
           <p>No invoices found.</p>
@@ -560,22 +632,14 @@ $badge_map = [
             $b = $badge_map[$inv['status']] ?? $badge_map['draft'];
           ?>
           <tr>
-            <td>
-              <a class="inv-num" href="/invoice/?id=<?= $inv['id'] ?>" target="_blank">
-                <?= htmlspecialchars($inv['invoice_num']) ?>
-              </a>
-            </td>
+            <td><a class="inv-num" href="/invoice/?id=<?= $inv['id'] ?>" target="_blank"><?= htmlspecialchars($inv['invoice_num']) ?></a></td>
             <td>
               <div class="client-name"><?= htmlspecialchars($inv['client_name']) ?></div>
               <div class="client-email"><?= htmlspecialchars($inv['client_email']) ?></div>
             </td>
             <td><?= fmt_date($inv['issue_date']) ?></td>
             <td><?= fmt_date($inv['due_date']) ?></td>
-            <td>
-              <span class="badge" style="background:<?= $b['bg'] ?>;color:<?= $b['color'] ?>;">
-                <?= $b['label'] ?>
-              </span>
-            </td>
+            <td><span class="badge" style="background:<?= $b['bg'] ?>;color:<?= $b['color'] ?>;"><?= $b['label'] ?></span></td>
             <td class="r"><?= fmt_money($inv['total']) ?></td>
             <td class="actions-cell">
               <button class="menu-btn" onclick="toggleMenu(<?= $inv['id'] ?>, event)">⋯</button>
@@ -596,6 +660,62 @@ $badge_map = [
         </tbody>
       </table>
       <?php endif; ?>
+
+      <?php else: /* proposals tab */ ?>
+      <?php if (empty($proposals)): ?>
+        <div class="empty-state">
+          <p>No proposals yet.</p>
+          <a class="btn btn-primary" href="/taterdash-app/admin/new-proposal.php">+ Create your first proposal</a>
+        </div>
+      <?php else: ?>
+      <table>
+        <thead>
+          <tr>
+            <th>Proposal #</th>
+            <th>Client</th>
+            <th>Campaign</th>
+            <th>Package</th>
+            <th>Status</th>
+            <th class="r">Value</th>
+            <th class="r">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($proposals as $prop):
+            $status = $prop['expiry_date'] && $prop['expiry_date'] < date('Y-m-d') && $prop['status'] !== 'signed' ? 'expired' : $prop['status'];
+            $b = $badge_map[$status] ?? $badge_map['draft'];
+          ?>
+          <tr>
+            <td>
+              <a class="inv-num" href="<?= SITE_URL ?>/proposal/?id=<?= $prop['id'] ?>" target="_blank">
+                <?= htmlspecialchars($prop['proposal_num']) ?>
+              </a>
+            </td>
+            <td>
+              <div class="client-name"><?= htmlspecialchars($prop['client_name']) ?></div>
+              <div class="client-email"><?= htmlspecialchars($prop['client_email']) ?></div>
+            </td>
+            <td style="font-size:12px;color:var(--ink-mid);"><?= htmlspecialchars($prop['campaign_name'] ?? '—') ?></td>
+            <td style="font-size:12px;color:var(--ink-mid);"><?= htmlspecialchars($prop['package_name'] ?? 'Custom') ?></td>
+            <td><span class="badge" style="background:<?= $b['bg'] ?>;color:<?= $b['color'] ?>;"><?= $b['label'] ?></span></td>
+            <td class="r"><?= fmt_money($prop['total']) ?></td>
+            <td class="actions-cell">
+              <button class="menu-btn" onclick="toggleMenu('p<?= $prop['id'] ?>', event)">⋯</button>
+              <div class="dropdown" id="menu-p<?= $prop['id'] ?>">
+                <a href="<?= SITE_URL ?>/proposal/?id=<?= $prop['id'] ?>" target="_blank">Open proposal</a>
+                <a href="/taterdash-app/admin/edit-proposal.php?id=<?= $prop['id'] ?>">Edit</a>
+                <a href="#" onclick="copyPropLink('<?= SITE_URL ?>/proposal/?id=<?= $prop['id'] ?>'); return false;">Copy link</a>
+                <div class="dropdown-divider"></div>
+                <button class="danger" onclick="deleteProposal(<?= $prop['id'] ?>)">Delete</button>
+              </div>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php endif; ?>
+      <?php endif; ?>
+
     </div>
 
   </div>
@@ -662,6 +782,25 @@ $badge_map = [
     });
     showToast('Marked as Paid', '');
     setTimeout(() => location.reload(), 1200);
+  }
+
+  function copyPropLink(url) {
+    navigator.clipboard.writeText(url);
+    showToast('Link copied', 'Share this with your client');
+  }
+
+  function deleteProposal(id) {
+    const overlay = document.getElementById('modal-delete');
+    overlay.classList.add('open');
+    document.getElementById('modal-delete-confirm').onclick = async () => {
+      overlay.classList.remove('open');
+      await fetch('/taterdash-app/taterdash/delete-proposal.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposal_id: id })
+      });
+      location.reload();
+    };
   }
 
   function deleteInvoice(id) {

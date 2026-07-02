@@ -40,6 +40,15 @@ function generate_invoice_num($pdo) {
     return 'INV-' . $year . '-' . str_pad($max + 1, 3, '0', STR_PAD_LEFT);
 }
 
+function generate_proposal_num($pdo) {
+    $year = date('Y');
+    $prefix = 'PROP-' . $year . '-%';
+    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(proposal_num, '-', -1) AS UNSIGNED)) FROM td_proposals WHERE proposal_num LIKE ?");
+    $stmt->execute([$prefix]);
+    $max = intval($stmt->fetchColumn());
+    return 'PROP-' . $year . '-' . str_pad($max + 1, 3, '0', STR_PAD_LEFT);
+}
+
 function generate_slug($client_name) {
     $slug = strtolower(trim($client_name));
     $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
