@@ -226,7 +226,7 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
     <a class="nav-item active" href="/taterdash-app/admin/new-proposal.php"><i class="ti ti-file-text"></i> New Proposal</a>
     <span class="nav-label">Manage</span>
     <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
+    <a class="nav-item" href="/taterdash-app/admin/all-activity.php"><i class="ti ti-list"></i> All Activity</a>
     <a class="nav-item" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">

@@ -521,7 +521,7 @@ body {
     <a class="nav-item active" href="/taterdash-app/admin/">
         <i class="ti ti-layout-dashboard"></i> Dashboard
     </a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=all">
+    <a class="nav-item" href="/taterdash-app/admin/all-activity.php">
         <i class="ti ti-list"></i> All Activity
     </a>
     <a class="nav-item" href="/taterdash-app/admin/clients.php">
@@ -578,7 +578,7 @@ body {
                     <?php endforeach; endif; ?>
                 </div>
                 <div class="bell-dd-footer">
-                    <a href="/taterdash-app/admin/?view=all">View all activity →</a>
+                    <a href="/taterdash-app/admin/all-activity.php">View all activity →</a>
                 </div>
             </div>
         </div>
