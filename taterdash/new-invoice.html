@@ -558,6 +558,15 @@
   // ── Set default date ──
   document.getElementById('issue_date').value = new Date().toISOString().split('T')[0];
 
+  // ── Prefill from a client deep-link (e.g. from the Clients page) ──
+  (function prefillFromQuery() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('client_name'))  document.getElementById('client_name').value  = p.get('client_name');
+    if (p.get('client_email')) document.getElementById('client_email').value = p.get('client_email');
+    if (p.get('contact_name')) document.getElementById('contact_name').value = p.get('contact_name');
+    if (typeof updatePreview === 'function') updatePreview();
+  })();
+
   // ── Client autocomplete ──
   let CLIENTS_DATA = [];
   fetch('/taterdash-app/taterdash/get-clients.php')

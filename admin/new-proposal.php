@@ -421,6 +421,14 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
   let delCount = 0;
   let generatedUrl = null;
 
+  // ── Prefill from a client deep-link (e.g. from the Clients page) ──
+  (function prefillFromQuery() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('client_name'))  document.getElementById('client_name').value  = p.get('client_name');
+    if (p.get('client_email')) document.getElementById('client_email').value = p.get('client_email');
+    if (typeof updatePreview === 'function') updatePreview();
+  })();
+
   // ── Client autocomplete ──
   let CLIENTS_DATA = [];
   fetch('/taterdash-app/taterdash/get-clients.php')
