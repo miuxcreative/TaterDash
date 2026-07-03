@@ -524,7 +524,7 @@ body {
     <a class="nav-item" href="/taterdash-app/admin/?view=all">
         <i class="ti ti-list"></i> All Activity
     </a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=clients">
+    <a class="nav-item" href="/taterdash-app/admin/clients.php">
         <i class="ti ti-users"></i> Clients
     </a>
 

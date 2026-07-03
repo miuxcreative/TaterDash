@@ -39,15 +39,31 @@ try {
     $pdo = db_connect();
     $proposal_num = generate_proposal_num($pdo);
 
+    // ── Save or find client ──
+    $client_id = null;
+    $stmt = $pdo->prepare("SELECT id FROM td_clients WHERE email = ?");
+    $stmt->execute([$client_email]);
+    $existing = $stmt->fetch();
+
+    if ($existing) {
+        $client_id = $existing['id'];
+        $pdo->prepare("UPDATE td_clients SET company = ? WHERE id = ?")
+            ->execute([$client_name, $client_id]);
+    } else {
+        $pdo->prepare("INSERT INTO td_clients (company, email) VALUES (?, ?)")
+            ->execute([$client_name, $client_email]);
+        $client_id = $pdo->lastInsertId();
+    }
+
     $stmt = $pdo->prepare("
         INSERT INTO td_proposals
-            (proposal_num, client_name, client_email, campaign_name, platform,
+            (proposal_num, client_id, client_name, client_email, campaign_name, platform,
              campaign_start, campaign_end, package_id, deliverables, total,
              notes, partner_industries, expiry_date, issue_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
     ");
     $stmt->execute([
-        $proposal_num, $client_name, $client_email, $campaign_name, $platform,
+        $proposal_num, $client_id, $client_name, $client_email, $campaign_name, $platform,
         $campaign_start, $campaign_end, $package_id, $deliverables, $total,
         $notes, $partner_industries, $expiry_date, $issue_date
     ]);

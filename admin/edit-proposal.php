@@ -182,7 +182,7 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
     <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
     <a class="nav-item active" href="#"><i class="ti ti-file-pencil"></i> Edit Proposal</a>
     <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=clients"><i class="ti ti-users"></i> Clients</a>
+    <a class="nav-item" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">
     <div class="nav-profile">

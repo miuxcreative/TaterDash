@@ -77,7 +77,7 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
     <span class="nav-label">Manage</span>
     <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
     <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=clients"><i class="ti ti-users"></i> Clients</a>
+    <a class="nav-item" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">
     <div class="nav-profile">

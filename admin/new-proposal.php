@@ -93,6 +93,21 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
     .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--pink); }
     .field textarea { resize: vertical; min-height: 88px; }
 
+    /* ── CLIENT AUTOCOMPLETE ── */
+    .client-picker { position: relative; }
+    .client-suggestions {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08); max-height: 220px; overflow-y: auto; z-index: 50;
+    }
+    .client-suggestions.open { display: block; }
+    .client-suggestion { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+    .client-suggestion:last-child { border-bottom: none; }
+    .client-suggestion:hover, .client-suggestion.active { background: var(--blush); }
+    .cs-name  { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .cs-email { font-size: 11px; color: var(--ink-mid); margin-top: 1px; }
+    .cs-empty { padding: 9px 12px; font-size: 12px; color: var(--ink-mid); }
+
     /* ── PACKAGE CARDS ── */
     .pkg-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
     .pkg-card {
@@ -212,7 +227,7 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
     <span class="nav-label">Manage</span>
     <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
     <a class="nav-item" href="/taterdash-app/admin/?view=all"><i class="ti ti-list"></i> All Activity</a>
-    <a class="nav-item" href="/taterdash-app/admin/?view=clients"><i class="ti ti-users"></i> Clients</a>
+    <a class="nav-item" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">
     <div class="nav-profile">
@@ -238,9 +253,11 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
 
     <div class="section-divider">Client</div>
     <div class="field-group">
-      <div class="field">
+      <div class="field client-picker">
         <label>Company / Client Name *</label>
-        <input type="text" id="client_name" placeholder="Airdog USA" oninput="updatePreview()">
+        <input type="text" id="client_name" placeholder="Airdog USA" autocomplete="off"
+               oninput="onClientNameInput()" onfocus="onClientNameInput()">
+        <div class="client-suggestions" id="clientSuggestions"></div>
       </div>
       <div class="field">
         <label>Client Email *</label>
@@ -403,6 +420,55 @@ $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_ac
   let selectedPackageId = null;
   let delCount = 0;
   let generatedUrl = null;
+
+  // ── Client autocomplete ──
+  let CLIENTS_DATA = [];
+  fetch('/taterdash-app/taterdash/get-clients.php')
+    .then(r => r.json())
+    .then(d => { if (d.success) CLIENTS_DATA = d.clients; })
+    .catch(() => {});
+
+  let _currentMatches = [];
+
+  function onClientNameInput() {
+    const q   = document.getElementById('client_name').value.trim().toLowerCase();
+    const box = document.getElementById('clientSuggestions');
+    updatePreview();
+
+    if (!q) { box.classList.remove('open'); box.innerHTML = ''; return; }
+
+    _currentMatches = CLIENTS_DATA.filter(c =>
+      c.company.toLowerCase().includes(q) || (c.contact_name || '').toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    if (!_currentMatches.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
+
+    box.innerHTML = _currentMatches.map((c, i) => `
+      <div class="client-suggestion" onclick="pickClient(${i})">
+        <div class="cs-name">${escHtml(c.company)}</div>
+        <div class="cs-email">${escHtml(c.email)}</div>
+      </div>
+    `).join('');
+    box.classList.add('open');
+  }
+
+  function pickClient(i) {
+    const c = _currentMatches[i];
+    document.getElementById('client_name').value  = c.company;
+    document.getElementById('client_email').value = c.email;
+    document.getElementById('clientSuggestions').classList.remove('open');
+    updatePreview();
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.client-picker')) {
+      document.getElementById('clientSuggestions').classList.remove('open');
+    }
+  });
 
   // ── Package selection ──
   function selectPackage(id, deliverablesJson, price) {
