@@ -56,6 +56,17 @@ function log_event(PDO $pdo, string $event_type, string $entity_type, int $entit
     ")->execute([$event_type, $entity_type, $entity_id, $entity_num, $entity_name, $amount]);
 }
 
+function log_php_error(PDO $pdo, string $context, Throwable $e, array $requestData = []): void {
+    try {
+        $pdo->prepare("
+            INSERT INTO td_error_log (context, message, request_data)
+            VALUES (?, ?, ?)
+        ")->execute([$context, $e->getMessage(), json_encode($requestData)]);
+    } catch (Throwable $ignored) {
+        // Never let logging failure mask the original error response.
+    }
+}
+
 function generate_slug($client_name) {
     $slug = strtolower(trim($client_name));
     $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);

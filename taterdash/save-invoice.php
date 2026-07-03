@@ -119,6 +119,7 @@ try {
 
 } catch (Exception $e) {
     $pdo->rollBack();
+    log_php_error($pdo, 'save-invoice', $e, $data);
     http_response_code(500);
     echo json_encode(['error' => 'Failed to save invoice: ' . $e->getMessage()]);
 }

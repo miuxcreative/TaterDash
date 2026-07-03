@@ -28,36 +28,42 @@ if (!$id || !in_array($status, $allowed)) {
 
 $pdo = db_connect();
 
-if ($type === 'proposal') {
-    $stmt = $pdo->prepare("SELECT proposal_num, client_name FROM td_proposals WHERE id = ?");
-    $stmt->execute([$id]);
-    $proposal = $stmt->fetch();
-    if (!$proposal) {
-        http_response_code(404);
-        die(json_encode(['error' => 'Proposal not found']));
-    }
-    // Guard: only advance — never demote status
-    $guard = $status === 'sent' ? "AND status = 'draft'" : "AND status = 'sent'";
-    $pdo->prepare("UPDATE td_proposals SET status = ?, updated_at = NOW() WHERE id = ? $guard")
-        ->execute([$status, $id]);
-    log_event($pdo, $status, 'proposal', $id, $proposal['proposal_num'], $proposal['client_name']);
-    echo json_encode(['success' => true, 'id' => $id, 'status' => $status]);
+try {
+    if ($type === 'proposal') {
+        $stmt = $pdo->prepare("SELECT proposal_num, client_name FROM td_proposals WHERE id = ?");
+        $stmt->execute([$id]);
+        $proposal = $stmt->fetch();
+        if (!$proposal) {
+            http_response_code(404);
+            die(json_encode(['error' => 'Proposal not found']));
+        }
+        // Guard: only advance — never demote status
+        $guard = $status === 'sent' ? "AND status = 'draft'" : "AND status = 'sent'";
+        $pdo->prepare("UPDATE td_proposals SET status = ?, updated_at = NOW() WHERE id = ? $guard")
+            ->execute([$status, $id]);
+        log_event($pdo, $status, 'proposal', $id, $proposal['proposal_num'], $proposal['client_name']);
+        echo json_encode(['success' => true, 'id' => $id, 'status' => $status]);
 
-} else {
-    $inv = $pdo->prepare("SELECT invoice_num, client_name, total FROM td_invoices WHERE id = ?");
-    $inv->execute([$id]);
-    $invoice = $inv->fetch();
-    if (!$invoice) {
-        http_response_code(404);
-        die(json_encode(['error' => 'Invoice not found']));
-    }
-    if ($status === '_delete') {
-        log_event($pdo, 'deleted', 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
-        $pdo->prepare("DELETE FROM td_invoices WHERE id = ?")->execute([$id]);
-        echo json_encode(['success' => true, 'invoice_id' => $id, 'deleted' => true]);
     } else {
-        $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ?")->execute([$status, $id]);
-        log_event($pdo, $status, 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
-        echo json_encode(['success' => true, 'invoice_id' => $id, 'status' => $status]);
+        $inv = $pdo->prepare("SELECT invoice_num, client_name, total FROM td_invoices WHERE id = ?");
+        $inv->execute([$id]);
+        $invoice = $inv->fetch();
+        if (!$invoice) {
+            http_response_code(404);
+            die(json_encode(['error' => 'Invoice not found']));
+        }
+        if ($status === '_delete') {
+            log_event($pdo, 'deleted', 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
+            $pdo->prepare("DELETE FROM td_invoices WHERE id = ?")->execute([$id]);
+            echo json_encode(['success' => true, 'invoice_id' => $id, 'deleted' => true]);
+        } else {
+            $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ?")->execute([$status, $id]);
+            log_event($pdo, $status, 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
+            echo json_encode(['success' => true, 'invoice_id' => $id, 'status' => $status]);
+        }
     }
+} catch (Exception $e) {
+    log_php_error($pdo, 'update-status', $e, $data);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

@@ -56,6 +56,12 @@ try {
     $bell_notifications = $pdo->query("SELECT * FROM td_activity ORDER BY created_at DESC LIMIT 8")->fetchAll();
 } catch (Exception $e) {}
 
+// ── Unresolved error count ──────────────────────────────────────────────────
+$unresolved_error_count = 0;
+try {
+    $unresolved_error_count = (int) $pdo->query("SELECT COUNT(*) FROM td_error_log WHERE is_resolved=0")->fetchColumn();
+} catch (Exception $e) {}
+
 // ── Activity ──────────────────────────────────────────────────────────────────
 $activity = $pdo->query("
     SELECT 'invoice' row_type, id, client_name, invoice_num ref_num,
@@ -526,6 +532,10 @@ body {
     </a>
     <a class="nav-item" href="/taterdash-app/admin/clients.php">
         <i class="ti ti-users"></i> Clients
+    </a>
+    <a class="nav-item" href="/taterdash-app/admin/errors.php" style="display:flex;align-items:center;">
+        <i class="ti ti-alert-triangle"></i> Errors
+        <?php if ($unresolved_error_count > 0): ?><span style="margin-left:auto;background:#e04d80;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;"><?= $unresolved_error_count ?></span><?php endif; ?>
     </a>
 
     <div class="sidebar-spacer"></div>

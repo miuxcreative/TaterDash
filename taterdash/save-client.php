@@ -54,5 +54,6 @@ try {
     }
     echo json_encode(['success' => true, 'id' => $id]);
 } catch (Exception $e) {
+    log_php_error($pdo, 'save-client', $e, $data);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

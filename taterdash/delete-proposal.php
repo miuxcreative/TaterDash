@@ -18,5 +18,6 @@ try {
     $pdo->prepare("DELETE FROM td_proposals WHERE id = ?")->execute([$id]);
     echo json_encode(['success'=>true]);
 } catch (Exception $e) {
+    log_php_error($pdo, 'delete-proposal', $e, $data);
     echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
 }

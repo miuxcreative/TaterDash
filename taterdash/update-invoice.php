@@ -85,5 +85,6 @@ try {
 
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
+    log_php_error($pdo, 'update-invoice', $e, $data);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

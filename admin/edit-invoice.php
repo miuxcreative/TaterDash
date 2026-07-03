@@ -321,6 +321,7 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
     <a class="nav-item active" href="#"><i class="ti ti-file-pencil"></i> Edit Invoice</a>
     <a class="nav-item" href="/taterdash-app/admin/all-activity.php"><i class="ti ti-list"></i> All Activity</a>
     <a class="nav-item" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
+    <a class="nav-item" href="/taterdash-app/admin/errors.php"><i class="ti ti-alert-triangle"></i> Errors</a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">
     <div class="nav-profile">

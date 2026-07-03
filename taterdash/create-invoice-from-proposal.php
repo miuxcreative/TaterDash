@@ -63,5 +63,6 @@ try {
     ]);
 
 } catch (Exception $e) {
+    log_php_error($pdo, 'create-invoice-from-proposal', $e, $data);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

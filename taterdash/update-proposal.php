@@ -73,5 +73,6 @@ try {
         'url'     => SITE_URL . '/proposal/?id=' . $proposal_id,
     ]);
 } catch (Exception $e) {
+    log_php_error($pdo, 'update-proposal', $e, $data);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

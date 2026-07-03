@@ -58,5 +58,6 @@ try {
         'signer'     => $signer_name,
     ]);
 } catch (Exception $e) {
+    log_php_error($pdo, 'sign-proposal', $e, $data);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
