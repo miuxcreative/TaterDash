@@ -62,12 +62,6 @@ Both are one-time — once done, error logging is fully live with no further ste
 
 ## Next up
 
-- Wipe test/demo data from the live database, then import real historical
-  clients + invoices (in progress — see below).
-- Stripe: real Checkout Session per invoice with a prefilled amount.
-- Proposal system visual polish (styling/interaction only — not the RF Studios
-  static-file architecture, confirmed out of scope).
-- Email delivery: EmailJS vs. a server-side sender — still an open decision.
-- Full audit (security, data integrity, edge cases).
-- White-label exploration for G-Space Agency / MIUX — its own planning pass, not a
-  simple feature addition.
+See [`TODO.md`](TODO.md) for the full checklist — blocking activation steps, the
+data migration, and the prioritized build queue (Stripe, email, proposal polish,
+Settings page, partner logo uploads, PDF styling, then audit and white-label).
