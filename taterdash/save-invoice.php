@@ -4,6 +4,12 @@
 // /public_html/taterdash/save-invoice.php
 // ═══════════════════════════════════════════
 
+session_start();
+if (empty($_SESSION['td_user'])) {
+    http_response_code(401);
+    die(json_encode(['success' => false, 'error' => 'Unauthorized']));
+}
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: https://mallowfrenchie.com');
 header('Access-Control-Allow-Methods: POST');
@@ -62,19 +68,20 @@ try {
     }
     $total = $subtotal;
 
-    // ── Generate invoice number and slug ──
+    // ── Generate invoice number and token ──
     $invoice_num = generate_invoice_num($pdo);
-    $slug        = generate_slug($data['client_name']);
+    $token       = generate_token();
 
     // ── Insert invoice ──
     $stmt = $pdo->prepare("
         INSERT INTO td_invoices
-            (invoice_num, client_id, client_name, client_email, issue_date, due_date, status, subtotal, total, notes, stripe_link)
+            (invoice_num, token, client_id, client_name, client_email, issue_date, due_date, status, subtotal, total, notes, stripe_link)
         VALUES
-            (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
     ");
     $stmt->execute([
         $invoice_num,
+        $token,
         $client_id,
         $data['client_name'],
         $data['client_email'],
@@ -114,12 +121,12 @@ try {
         'success'     => true,
         'invoice_id'  => $invoice_id,
         'invoice_num' => $invoice_num,
-        'url'         => SITE_URL . '/invoice/?id=' . $invoice_id,
+        'url'         => SITE_URL . '/invoice/?t=' . $token,
     ]);
 
 } catch (Exception $e) {
     $pdo->rollBack();
     log_php_error($pdo, 'save-invoice', $e, $data);
     http_response_code(500);
-    echo json_encode(['error' => 'Failed to save invoice: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Something went wrong — it has been logged.']);
 }

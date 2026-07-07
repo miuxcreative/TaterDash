@@ -38,6 +38,7 @@ if (!$client_name || !$client_email) {
 try {
     $pdo = db_connect();
     $proposal_num = generate_proposal_num($pdo);
+    $token        = generate_token();
 
     // ── Save or find client ──
     $client_id = null;
@@ -57,13 +58,13 @@ try {
 
     $stmt = $pdo->prepare("
         INSERT INTO td_proposals
-            (proposal_num, client_id, client_name, client_email, campaign_name, platform,
+            (proposal_num, token, client_id, client_name, client_email, campaign_name, platform,
              campaign_start, campaign_end, package_id, deliverables, total,
              notes, partner_industries, expiry_date, issue_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
     ");
     $stmt->execute([
-        $proposal_num, $client_id, $client_name, $client_email, $campaign_name, $platform,
+        $proposal_num, $token, $client_id, $client_name, $client_email, $campaign_name, $platform,
         $campaign_start, $campaign_end, $package_id, $deliverables, $total,
         $notes, $partner_industries, $expiry_date, $issue_date
     ]);
@@ -75,9 +76,9 @@ try {
         'success'      => true,
         'proposal_id'  => $proposal_id,
         'proposal_num' => $proposal_num,
-        'url'          => SITE_URL . '/proposal/?id=' . $proposal_id,
+        'url'          => SITE_URL . '/proposal/?t=' . $token,
     ]);
 } catch (Exception $e) {
     log_php_error($pdo, 'save-proposal', $e, $data);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }

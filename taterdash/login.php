@@ -1,10 +1,6 @@
 <?php
 session_start();
-
-$USERS = [
-    'gina' => '$2y$12$P0BbLvV4Kb1BfE1m10dKyeaJ54c1hcIvGx00mxCwTbYXj9Uc4zPPW',
-    'miu'  => '$2y$12$8uZO4fFoNTnjGoTI4KCan.EhKFrvRKDen2RF6HBOWA.I6IJlMwm6m',
-];
+require_once __DIR__ . '/auth.php';
 
 if (!empty($_SESSION['td_user'])) {
     header('Location: /taterdash-app/admin/');
@@ -13,10 +9,9 @@ if (!empty($_SESSION['td_user'])) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = strtolower(trim($_POST['username'] ?? ''));
+    $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    if (isset($USERS[$username]) && password_verify($password, $USERS[$username])) {
-        $_SESSION['td_user'] = $username;
+    if (attempt_login($username, $password)) {
         header('Location: /taterdash-app/admin/');
         exit;
     }

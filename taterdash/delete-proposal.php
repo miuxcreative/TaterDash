@@ -19,5 +19,5 @@ try {
     echo json_encode(['success'=>true]);
 } catch (Exception $e) {
     log_php_error($pdo, 'delete-proposal', $e, $data);
-    echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
+    echo json_encode(['success'=>false,'error'=>'Something went wrong — it has been logged.']);
 }

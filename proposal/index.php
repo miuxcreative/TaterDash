@@ -7,13 +7,24 @@
 require_once __DIR__ . '/../taterdash-app/taterdash/config.php';
 $pdo = db_connect();
 
-$id = intval($_GET['id'] ?? 0);
-if (!$id) { http_response_code(404); die('Not found'); }
+$token = trim($_GET['t'] ?? '');
+$id    = intval($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare("SELECT * FROM td_proposals WHERE id = ?");
-$stmt->execute([$id]);
+// ── Fetch proposal: token is the primary lookup; id fallback is for links sent before tokens existed ──
+// TODO: remove id fallback after launch
+if ($token) {
+    $stmt = $pdo->prepare("SELECT * FROM td_proposals WHERE token = ?");
+    $stmt->execute([$token]);
+} elseif ($id) {
+    $stmt = $pdo->prepare("SELECT * FROM td_proposals WHERE id = ?");
+    $stmt->execute([$id]);
+} else {
+    http_response_code(404);
+    die('Not found');
+}
 $p = $stmt->fetch();
 if (!$p) { http_response_code(404); die('Proposal not found'); }
+$id = $p['id'];
 
 // Mark as viewed
 if ($p['status'] === 'sent') {

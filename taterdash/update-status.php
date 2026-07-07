@@ -4,6 +4,12 @@
 // POST: { type?, id|invoice_id, status }
 // ═══════════════════════════════════════════
 
+session_start();
+if (empty($_SESSION['td_user'])) {
+    http_response_code(401);
+    die(json_encode(['success' => false, 'error' => 'Unauthorized']));
+}
+
 header('Content-Type: application/json');
 require_once __DIR__ . '/config.php';
 
@@ -39,8 +45,12 @@ try {
         }
         // Guard: only advance — never demote status
         $guard = $status === 'sent' ? "AND status = 'draft'" : "AND status = 'sent'";
-        $pdo->prepare("UPDATE td_proposals SET status = ?, updated_at = NOW() WHERE id = ? $guard")
-            ->execute([$status, $id]);
+        $stmt = $pdo->prepare("UPDATE td_proposals SET status = ?, updated_at = NOW() WHERE id = ? $guard");
+        $stmt->execute([$status, $id]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(409);
+            die(json_encode(['success' => false, 'error' => 'Status not changed (already past this state)']));
+        }
         log_event($pdo, $status, 'proposal', $id, $proposal['proposal_num'], $proposal['client_name']);
         echo json_encode(['success' => true, 'id' => $id, 'status' => $status]);
 
@@ -65,5 +75,5 @@ try {
 } catch (Exception $e) {
     log_php_error($pdo, 'update-status', $e, $data);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }

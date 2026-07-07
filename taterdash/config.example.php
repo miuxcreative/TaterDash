@@ -73,3 +73,7 @@ function generate_slug($client_name) {
     $slug = trim($slug, '-');
     return $slug . '-' . date('Y-m');
 }
+
+function generate_token() {
+    return bin2hex(random_bytes(16));
+}

@@ -2,29 +2,35 @@
 // ═══════════════════════════════════════════
 // TaterDash — Client Invoice View
 // /public_html/invoice/index.php
-// mallowfrenchie.com/invoice/?id=1
+// mallowfrenchie.com/invoice/?t=TOKEN (or ?id=1 for pre-token links)
 // ═══════════════════════════════════════════
 
 require_once __DIR__ . '/../taterdash-app/taterdash/config.php';
 
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-
-if (!$id) {
-    http_response_code(404);
-    die('Invoice not found.');
-}
+$token = isset($_GET['t']) ? trim($_GET['t']) : '';
+$id    = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 $pdo = db_connect();
 
-// ── Fetch invoice ──
-$stmt = $pdo->prepare("SELECT * FROM td_invoices WHERE id = ?");
-$stmt->execute([$id]);
+// ── Fetch invoice: token is the primary lookup; id fallback is for links sent before tokens existed ──
+// TODO: remove id fallback after launch
+if ($token) {
+    $stmt = $pdo->prepare("SELECT * FROM td_invoices WHERE token = ?");
+    $stmt->execute([$token]);
+} elseif ($id) {
+    $stmt = $pdo->prepare("SELECT * FROM td_invoices WHERE id = ?");
+    $stmt->execute([$id]);
+} else {
+    http_response_code(404);
+    die('Invoice not found.');
+}
 $invoice = $stmt->fetch();
 
 if (!$invoice) {
     http_response_code(404);
     die('Invoice not found.');
 }
+$id = $invoice['id'];
 
 // ── Fetch line items ──
 $stmt = $pdo->prepare("SELECT * FROM td_line_items WHERE invoice_id = ? ORDER BY sort_order");

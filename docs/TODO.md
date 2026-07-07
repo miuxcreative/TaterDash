@@ -7,10 +7,14 @@ what's already shipped in detail.
 
 ## 🔴 Blocking — do these first
 
-- [ ] **Run `taterdash/migrate-error-log.sql`** in phpMyAdmin — creates `td_error_log`.
+- [x] **Run `taterdash/migrate-error-log.sql`** in phpMyAdmin — creates `td_error_log`.
       Without it, error logging silently no-ops.
-- [ ] **Add `log_php_error()` to live `config.php`** — copy from `config.example.php`
+- [x] **Add `log_php_error()` to live `config.php`** — copy from `config.example.php`
       (sits above `generate_slug()`). Deploy doesn't touch `config.php`, it's manual.
+- [ ] **Verify error logging end-to-end** — trigger a real failure through the sandbox
+      UI (e.g. save an invoice/proposal with a bad `client_id` so the insert throws),
+      then confirm a row lands in `td_error_log` (`context`, `message`, `request_data`
+      populated). Safe to do freely since it's still sandbox data — no real invoices yet.
 
 ## 🟡 Data migration — waiting on real client/invoice data from Milena
 
@@ -42,6 +46,8 @@ what's already shipped in detail.
 
 ## 🔵 Later
 
+- [ ] **Full QA pass before handoff** — broad manual testing of the whole app (not just
+      the audit below) once the build queue is done, before handing off to the client.
 - [ ] **Full audit** — security (session/auth, input handling), data integrity
       (orphaned records, ENUM mismatches like the proposal `'signed'` bug we already
       hit once), UX edge cases. Do this after the build queue above, not before —

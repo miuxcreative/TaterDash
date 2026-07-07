@@ -35,9 +35,10 @@ try {
     $pdo = db_connect();
 
     // Verify invoice exists
-    $check = $pdo->prepare("SELECT id FROM td_invoices WHERE id = ?");
+    $check = $pdo->prepare("SELECT id, token FROM td_invoices WHERE id = ?");
     $check->execute([$invoice_id]);
-    if (!$check->fetch()) {
+    $existing = $check->fetch();
+    if (!$existing) {
         echo json_encode(['success' => false, 'error' => 'Invoice not found']);
         exit;
     }
@@ -80,11 +81,11 @@ try {
 
     echo json_encode([
         'success' => true,
-        'url'     => SITE_URL . '/invoice/?id=' . $invoice_id
+        'url'     => SITE_URL . '/invoice/?t=' . $existing['token']
     ]);
 
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     log_php_error($pdo, 'update-invoice', $e, $data);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }

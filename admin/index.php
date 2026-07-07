@@ -64,11 +64,11 @@ try {
 
 // ── Activity ──────────────────────────────────────────────────────────────────
 $activity = $pdo->query("
-    SELECT 'invoice' row_type, id, client_name, invoice_num ref_num,
+    SELECT 'invoice' row_type, id, token, client_name, invoice_num ref_num,
            invoice_num sub_label, created_at, status, total
     FROM td_invoices
     UNION ALL
-    SELECT 'proposal' row_type, id, client_name, proposal_num ref_num,
+    SELECT 'proposal' row_type, id, token, client_name, proposal_num ref_num,
            COALESCE(campaign_name,'') sub_label, created_at, status, total
     FROM td_proposals
     ORDER BY created_at DESC")->fetchAll();
@@ -133,13 +133,14 @@ function bell_time(string $dt): string {
 function row_actions(array $row): string {
     $type  = $row['row_type'];
     $id    = (int)$row['id'];
+    $token = $row['token'];
     $st    = $row['status'];
     $dd    = '';
 
     if ($type === 'invoice') {
-        $open = '/invoice/?id='.$id;
+        $open = '/invoice/?t='.$token;
         $edit = '/taterdash-app/admin/edit-invoice.php?id='.$id;
-        $copy = htmlspecialchars(SITE_URL.'/invoice/?id='.$id, ENT_QUOTES);
+        $copy = htmlspecialchars(SITE_URL.'/invoice/?t='.$token, ENT_QUOTES);
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
             $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'invoice\','.$id.',\'draft\')">Copy link</button>';
@@ -153,9 +154,9 @@ function row_actions(array $row): string {
             $dd .= '<a class="dd-item dd-last" href="'.$open.'" target="_blank">Open invoice</a>';
         }
     } else {
-        $open = '/proposal/?id='.$id;
+        $open = '/proposal/?t='.$token;
         $edit = '/taterdash-app/admin/edit-proposal.php?id='.$id;
-        $copy = htmlspecialchars(SITE_URL.'/proposal/?id='.$id, ENT_QUOTES);
+        $copy = htmlspecialchars(SITE_URL.'/proposal/?t='.$token, ENT_QUOTES);
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
             $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'proposal\','.$id.',\'draft\')">Copy link</button>';

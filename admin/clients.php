@@ -470,8 +470,8 @@ function openPanel(id) {
         .then(r => r.json())
         .then(d => {
             if (!d.success) return;
-            renderDocs('p-invoices',  d.invoices,  'invoice_num',  '/invoice/?id=',  'ti-file-invoice');
-            renderDocs('p-proposals', d.proposals, 'proposal_num', '/proposal/?id=', 'ti-file-text');
+            renderDocs('p-invoices',  d.invoices,  'invoice_num',  '/invoice/?t=',  'ti-file-invoice');
+            renderDocs('p-proposals', d.proposals, 'proposal_num', '/proposal/?t=', 'ti-file-text');
         })
         .catch(() => {
             document.getElementById('p-invoices').innerHTML = '<div class="panel-empty-docs">Couldn\'t load.</div>';
@@ -491,7 +491,7 @@ function renderDocs(elId, docs, numField, urlPrefix, icon) {
         const label = d.status === 'accepted' ? 'Signed' : d.status.charAt(0).toUpperCase() + d.status.slice(1);
         const date = new Date(d.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
         return `
-        <a class="doc-row" href="${urlPrefix}${d.id}" target="_blank">
+        <a class="doc-row" href="${urlPrefix}${d.token}" target="_blank">
             <div class="doc-icon"><i class="ti ${icon}"></i></div>
             <div class="doc-main">
                 <div class="doc-num">${escHtml(d[numField])}</div>

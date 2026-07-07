@@ -23,11 +23,11 @@ $stmt->execute([$id]);
 $client = $stmt->fetch();
 if (!$client) { die(json_encode(['success' => false, 'error' => 'Client not found'])); }
 
-$invStmt = $pdo->prepare("SELECT id, invoice_num, status, total, created_at FROM td_invoices WHERE client_id = ? ORDER BY created_at DESC");
+$invStmt = $pdo->prepare("SELECT id, token, invoice_num, status, total, created_at FROM td_invoices WHERE client_id = ? ORDER BY created_at DESC");
 $invStmt->execute([$id]);
 $invoices = $invStmt->fetchAll();
 
-$propStmt = $pdo->prepare("SELECT id, proposal_num, campaign_name, status, total, created_at FROM td_proposals WHERE client_id = ? ORDER BY created_at DESC");
+$propStmt = $pdo->prepare("SELECT id, token, proposal_num, campaign_name, status, total, created_at FROM td_proposals WHERE client_id = ? ORDER BY created_at DESC");
 $propStmt->execute([$id]);
 $proposals = $propStmt->fetchAll();
 

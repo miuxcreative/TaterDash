@@ -1,5 +1,6 @@
 -- TaterDash Database Schema
 -- Run this in phpMyAdmin > u335521326_TaterDash_db > SQL tab
+-- Reflects live schema as of 2026-07; migrations in taterdash/ are the change history.
 
 -- ── CLIENTS ──────────────────────────────────────────
 CREATE TABLE td_clients (
@@ -16,6 +17,7 @@ CREATE TABLE td_clients (
 CREATE TABLE td_invoices (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   invoice_num   VARCHAR(50) NOT NULL UNIQUE,
+  token         VARCHAR(32) UNIQUE,
   client_id     INT,
   client_name   VARCHAR(255) NOT NULL,
   client_email  VARCHAR(255) NOT NULL,
@@ -48,12 +50,13 @@ CREATE TABLE td_line_items (
 CREATE TABLE td_proposals (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   proposal_num    VARCHAR(50) NOT NULL UNIQUE,
+  token           VARCHAR(32) UNIQUE,
   client_id       INT,
   client_name     VARCHAR(255) NOT NULL,
   client_email    VARCHAR(255) NOT NULL,
   issue_date      DATE NOT NULL,
   expiry_date     DATE,
-  status          ENUM('draft','sent','viewed','accepted','declined') DEFAULT 'draft',
+  status          ENUM('draft','sent','viewed','signed','accepted','declined') DEFAULT 'draft',
   scope           TEXT,
   deliverables    TEXT,
   total           DECIMAL(10,2) DEFAULT 0.00,
@@ -71,6 +74,7 @@ CREATE TABLE td_signatures (
   signer_email    VARCHAR(255) NOT NULL,
   signed_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   ip_address      VARCHAR(50),
+  ip_direct       VARCHAR(50),
   user_agent      TEXT,
   FOREIGN KEY (proposal_id) REFERENCES td_proposals(id) ON DELETE CASCADE
 );

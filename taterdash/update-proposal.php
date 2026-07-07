@@ -38,9 +38,10 @@ if (!$proposal_id || !$client_name || !$client_email) {
 try {
     $pdo = db_connect();
 
-    $check = $pdo->prepare("SELECT id FROM td_proposals WHERE id = ?");
+    $check = $pdo->prepare("SELECT id, token FROM td_proposals WHERE id = ?");
     $check->execute([$proposal_id]);
-    if (!$check->fetch()) {
+    $existing = $check->fetch();
+    if (!$existing) {
         echo json_encode(['success' => false, 'error' => 'Proposal not found']);
         exit;
     }
@@ -70,9 +71,9 @@ try {
 
     echo json_encode([
         'success' => true,
-        'url'     => SITE_URL . '/proposal/?id=' . $proposal_id,
+        'url'     => SITE_URL . '/proposal/?t=' . $existing['token'],
     ]);
 } catch (Exception $e) {
     log_php_error($pdo, 'update-proposal', $e, $data);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }

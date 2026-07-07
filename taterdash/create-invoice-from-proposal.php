@@ -25,16 +25,33 @@ try {
     }
 
     $invoice_num = generate_invoice_num($pdo);
+    $token       = generate_token();
     $notes       = $proposal['campaign_name'] ?: $proposal['proposal_num'];
 
+    // ── Find or create client (mirrors save-invoice.php) ──
+    $client_id = null;
+    $stmt = $pdo->prepare("SELECT id FROM td_clients WHERE email = ?");
+    $stmt->execute([$proposal['client_email']]);
+    $existing_client = $stmt->fetch();
+    if ($existing_client) {
+        $client_id = $existing_client['id'];
+    } else {
+        $pdo->prepare("INSERT INTO td_clients (company, email) VALUES (?, ?)")
+            ->execute([$proposal['client_name'], $proposal['client_email']]);
+        $client_id = $pdo->lastInsertId();
+    }
+
     $pdo->prepare("
-        INSERT INTO td_invoices (client_name, client_email, invoice_num, issue_date, due_date, notes, total, status, created_at)
-        VALUES (?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), ?, ?, 'draft', NOW())
+        INSERT INTO td_invoices (client_id, client_name, client_email, invoice_num, token, issue_date, due_date, notes, subtotal, total, status, created_at)
+        VALUES (?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), ?, ?, ?, 'draft', NOW())
     ")->execute([
+        $client_id,
         $proposal['client_name'],
         $proposal['client_email'],
         $invoice_num,
+        $token,
         $notes,
+        $proposal['total'],
         $proposal['total'],
     ]);
 
@@ -44,12 +61,13 @@ try {
     $line_note   = 'Created from proposal ' . $proposal['proposal_num'];
 
     $pdo->prepare("
-        INSERT INTO td_line_items (invoice_id, description, note, quantity, unit_price)
-        VALUES (?, ?, ?, 1, ?)
+        INSERT INTO td_line_items (invoice_id, description, note, quantity, unit_price, total)
+        VALUES (?, ?, ?, 1, ?, ?)
     ")->execute([
         $invoice_id,
         $description,
         $line_note,
+        $proposal['total'],
         $proposal['total'],
     ]);
 
@@ -64,5 +82,5 @@ try {
 
 } catch (Exception $e) {
     log_php_error($pdo, 'create-invoice-from-proposal', $e, $data);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }

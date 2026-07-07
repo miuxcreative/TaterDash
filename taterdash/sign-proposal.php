@@ -39,13 +39,14 @@ try {
     }
 
     $ip         = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+    $ip_direct  = $_SERVER['REMOTE_ADDR'] ?? '';
     $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     $signed_at  = date('Y-m-d H:i:s');
 
     $pdo->prepare("
-        INSERT INTO td_signatures (proposal_id, signer_name, signer_email, signed_at, ip_address, user_agent)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ")->execute([$proposal_id, $signer_name, $proposal['client_email'], $signed_at, $ip, $user_agent]);
+        INSERT INTO td_signatures (proposal_id, signer_name, signer_email, signed_at, ip_address, ip_direct, user_agent)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ")->execute([$proposal_id, $signer_name, $proposal['client_email'], $signed_at, $ip, $ip_direct, $user_agent]);
 
     $pdo->prepare("UPDATE td_proposals SET status = 'signed' WHERE id = ?")
         ->execute([$proposal_id]);
@@ -59,5 +60,5 @@ try {
     ]);
 } catch (Exception $e) {
     log_php_error($pdo, 'sign-proposal', $e, $data);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Something went wrong — it has been logged.']);
 }
