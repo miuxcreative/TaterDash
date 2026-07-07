@@ -570,7 +570,6 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
       const data = await res.json();
 
       if (data.success) {
-        fire_emailjs(name, data.signed_at);
         // Replace signature block with signed state
         document.getElementById('sig-block').innerHTML = `
           <div class="sig-bar"></div>
@@ -597,12 +596,6 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
       btn.disabled = false;
       btn.textContent = 'Accept & Sign';
     }
-  }
-
-  function fire_emailjs(signerName, signedAt) {
-    // TODO: wire EmailJS when account is set up
-    console.log('[EmailJS] Proposal signed by', signerName, 'at', signedAt);
-    console.log('[EmailJS] Send confirmation to client + notify Gina');
   }
 
   function escHtml(s) {

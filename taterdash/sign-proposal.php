@@ -6,6 +6,7 @@
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/email-templates.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -52,6 +53,13 @@ try {
         ->execute([$proposal_id]);
 
     log_event($pdo, 'signed', 'proposal', $proposal_id, $proposal['proposal_num'], $proposal['client_name']);
+
+    // Best-effort — send_email() logs its own failures and never throws, so a
+    // failed notification must never block the signature response.
+    send_email($proposal['client_email'], 'Proposal Signed — ' . $proposal['proposal_num'], email_proposal_signed_client($proposal));
+    if (defined('NOTIFY_EMAIL') && NOTIFY_EMAIL) {
+        send_email(NOTIFY_EMAIL, 'Proposal Signed by ' . $signer_name, email_proposal_signed_notify($proposal, $signer_name));
+    }
 
     echo json_encode([
         'success'    => true,

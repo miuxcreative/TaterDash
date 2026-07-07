@@ -35,6 +35,8 @@ if (!function_exists('bell_chip')) {
             'signed'        => ['#e04d80','#fff','Signed'],
             'deleted'       => ['#f5e5e5','#b0b0b0','Deleted'],
             'from_proposal' => ['#c4dde8','#191919','Created'],
+            'resent'        => ['#faf0f0','#6b6b6b','Resent'],
+            'emailed'       => ['#faf0f0','#6b6b6b','Emailed'],
         ];
         [$bg,$col,$label] = $map[$event] ?? ['#f0f0f0','#555',ucfirst($event)];
         return "<span style=\"display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:$bg;color:$col;margin-right:4px\">$label</span>";
@@ -54,6 +56,8 @@ if (!function_exists('bell_sentence')) {
             case 'signed':        return "Proposal $num signed by $nm";
             case 'deleted':       return ucfirst($et)." $num deleted";
             case 'from_proposal': return "Invoice $num created from proposal";
+            case 'resent':        return ucfirst($et)." $num resent to client";
+            case 'emailed':       return ucfirst($et)." $num emailed to client";
             default:              return ucfirst($et)." $num";
         }
     }

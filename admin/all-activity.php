@@ -25,6 +25,8 @@ function event_chip(string $event): string {
         'signed'        => ['#e04d80','#fff','Signed'],
         'deleted'       => ['#f5e5e5','#b0b0b0','Deleted'],
         'from_proposal' => ['#c4dde8','#191919','Created'],
+        'resent'        => ['#faf0f0','#6b6b6b','Resent'],
+        'emailed'       => ['#faf0f0','#6b6b6b','Emailed'],
     ];
     [$bg,$col,$label] = $map[$event] ?? ['#f0f0f0','#555',ucfirst($event)];
     return "<span class=\"ev-chip\" style=\"background:$bg;color:$col\">$label</span>";
@@ -49,6 +51,8 @@ function event_sentence(array $n): string {
         case 'signed':        return "Proposal $numHtml signed by $name";
         case 'deleted':       return ucfirst($et)." $num deleted";
         case 'from_proposal': return "Invoice $numHtml created from proposal for $name";
+        case 'resent':        return ucfirst($et)." $numHtml resent to $name";
+        case 'emailed':       return ucfirst($et)." $numHtml emailed to $name";
         default:              return ucfirst($et)." $numHtml";
     }
 }
@@ -223,6 +227,8 @@ const BADGE = {
     signed:        ['#e04d80','#fff','Signed'],
     deleted:       ['#f5e5e5','#b0b0b0','Deleted'],
     from_proposal: ['#c4dde8','#191919','Created'],
+    resent:        ['#faf0f0','#6b6b6b','Resent'],
+    emailed:       ['#faf0f0','#6b6b6b','Emailed'],
 };
 
 function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -243,6 +249,8 @@ function sentence(n) {
         case 'signed':        return `Proposal ${numHtml} signed by ${name}`;
         case 'deleted':       return `${cap(et)} ${num} deleted`;
         case 'from_proposal': return `Invoice ${numHtml} created from proposal for ${name}`;
+        case 'resent':        return `${cap(et)} ${numHtml} resent to ${name}`;
+        case 'emailed':       return `${cap(et)} ${numHtml} emailed to ${name}`;
         default:              return `${cap(et)} ${numHtml}`;
     }
 }

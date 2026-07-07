@@ -56,11 +56,11 @@ try {
 
 // ── Activity ──────────────────────────────────────────────────────────────────
 $activity = $pdo->query("
-    SELECT 'invoice' row_type, id, token, client_name, invoice_num ref_num,
+    SELECT 'invoice' row_type, id, token, client_name, client_email, invoice_num ref_num,
            invoice_num sub_label, created_at, status, total
     FROM td_invoices
     UNION ALL
-    SELECT 'proposal' row_type, id, token, client_name, proposal_num ref_num,
+    SELECT 'proposal' row_type, id, token, client_name, client_email, proposal_num ref_num,
            COALESCE(campaign_name,'') sub_label, created_at, status, total
     FROM td_proposals
     ORDER BY created_at DESC")->fetchAll();
@@ -88,19 +88,24 @@ function row_actions(array $row): string {
     $id    = (int)$row['id'];
     $token = $row['token'];
     $st    = $row['status'];
+    $email = htmlspecialchars($row['client_email'] ?? '', ENT_QUOTES);
     $dd    = '';
 
     if ($type === 'invoice') {
         $open = '/invoice/?t='.$token;
         $edit = '/taterdash-app/admin/edit-invoice.php?id='.$id;
         $copy = htmlspecialchars(SITE_URL.'/invoice/?t='.$token, ENT_QUOTES);
+        $send = '<button class="dd-item" onclick="openSendModal(\'invoice\','.$id.',\''.$email.'\')">Send to client</button>';
+        $copyBtn = '<button class="dd-item" onclick="copyLinkOnly(\''.$copy.'\')">Copy link</button>';
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
-            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'invoice\','.$id.',\'draft\')">Copy link</button>';
+            $dd .= $send;
+            $dd .= $copyBtn;
             $dd .= '<button class="dd-item dd-pink dd-last" onclick="confirmDelete(\'invoice\','.$id.')">Delete</button>';
         } elseif (in_array($st,['sent','viewed'])) {
             $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open invoice</a>';
-            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'invoice\','.$id.',\''.$st.'\')">Copy link</button>';
+            $dd .= $send;
+            $dd .= $copyBtn;
             $dd .= '<button class="dd-item" onclick="markPaid('.$id.')">Mark as paid</button>';
             $dd .= '<a class="dd-item dd-last" href="'.$edit.'">Edit</a>';
         } else {
@@ -110,13 +115,17 @@ function row_actions(array $row): string {
         $open = '/proposal/?t='.$token;
         $edit = '/taterdash-app/admin/edit-proposal.php?id='.$id;
         $copy = htmlspecialchars(SITE_URL.'/proposal/?t='.$token, ENT_QUOTES);
+        $send = '<button class="dd-item" onclick="openSendModal(\'proposal\','.$id.',\''.$email.'\')">Send to client</button>';
+        $copyBtn = '<button class="dd-item" onclick="copyLinkOnly(\''.$copy.'\')">Copy link</button>';
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
-            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'proposal\','.$id.',\'draft\')">Copy link</button>';
+            $dd .= $send;
+            $dd .= $copyBtn;
             $dd .= '<button class="dd-item dd-pink dd-last" onclick="confirmDelete(\'proposal\','.$id.')">Delete</button>';
         } elseif (in_array($st,['sent','viewed'])) {
             $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open proposal</a>';
-            $dd .= '<button class="dd-item" onclick="copyLink(\''.$copy.'\',\'proposal\','.$id.',\''.$st.'\')">Copy link</button>';
+            $dd .= $send;
+            $dd .= $copyBtn;
             $dd .= '<a class="dd-item dd-last" href="'.$edit.'">Edit</a>';
         } elseif (in_array($st,['signed','accepted'])) {
             $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open proposal</a>';
@@ -578,6 +587,31 @@ body {
     </div>
 </div>
 
+<!-- Send modal -->
+<div class="modal-overlay" id="sendModal">
+    <div class="modal">
+        <div class="modal-bar"></div>
+        <div class="modal-body">
+            <div class="modal-title">Send to client</div>
+            <div class="modal-msg" style="margin-bottom:16px;">They'll receive a branded email with a secure link.</div>
+            <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;">
+                <label style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b6b6b;">To</label>
+                <input type="email" id="sendModalEmail" placeholder="client@example.com"
+                       style="font-family:inherit;font-size:13.5px;color:#191919;background:#fff;border:1px solid #e8e8e8;border-radius:8px;padding:9px 12px;outline:none;width:100%;">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+                <label style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b6b6b;">Personal note (optional)</label>
+                <textarea id="sendModalNote" rows="3" placeholder="Anything you'd like to add..."
+                          style="font-family:inherit;font-size:13.5px;color:#191919;background:#fff;border:1px solid #e8e8e8;border-radius:8px;padding:9px 12px;outline:none;width:100%;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn--cancel" onclick="closeSendModal()">Cancel</button>
+            <button class="modal-btn" id="sendModalConfirm" style="background:#e04d80;color:#fff;" onclick="executeSend()">Send</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -709,28 +743,55 @@ async function markPaid(id) {
     } catch(e) { showToast('Network error.'); }
 }
 
-// Copy link — also marks as sent if currently draft
-async function copyLink(url, type, id, currentStatus) {
+// Copy link — pure, never touches status
+async function copyLinkOnly(url) {
     try {
         await navigator.clipboard.writeText(url);
         showToast('Link copied!');
     } catch(e) {
         showToast('Copy failed.');
-        return;
     }
-    if (currentStatus === 'draft') {
-        try {
-            const body = type === 'invoice'
-                ? {invoice_id: id, status: 'sent'}
-                : {type: 'proposal', id: id, status: 'sent'};
-            const d = await fetch('/taterdash-app/taterdash/update-status.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(body)
-            }).then(r => r.json());
-            if (d.success) updateRowBadge(type, id, 'sent');
-        } catch(e) {}
+}
+
+// Send to client
+let _sendType = null, _sendId = null;
+function openSendModal(type, id, email) {
+    _sendType = type; _sendId = id;
+    document.getElementById('sendModalEmail').value = email || '';
+    document.getElementById('sendModalNote').value = '';
+    document.getElementById('sendModal').classList.add('open');
+}
+function closeSendModal() { document.getElementById('sendModal').classList.remove('open'); }
+document.getElementById('sendModal').addEventListener('click', function(e) { if (e.target===this) closeSendModal(); });
+
+async function executeSend() {
+    const to_email = document.getElementById('sendModalEmail').value.trim();
+    const personal_note = document.getElementById('sendModalNote').value.trim();
+    if (!to_email) { showToast('Enter an email address.'); return; }
+
+    const btn = document.getElementById('sendModalConfirm');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+        const d = await fetch('/taterdash-app/taterdash/send-document.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type: _sendType, id: _sendId, to_email, personal_note })
+        }).then(r => r.json());
+
+        if (d.success) {
+            closeSendModal();
+            showToast('Email sent!');
+            updateRowBadge(_sendType, _sendId, d.status);
+        } else {
+            showToast('Error: ' + (d.error || 'Send failed.'));
+        }
+    } catch(e) {
+        showToast('Network error.');
     }
+    btn.disabled = false;
+    btn.textContent = 'Send';
 }
 
 function updateRowBadge(type, id, status) {

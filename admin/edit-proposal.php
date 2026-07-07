@@ -201,7 +201,10 @@ include __DIR__ . '/partials/topbar.php';
     <div id="success-banner" class="success-banner">
       <div style="font-size:13px;font-weight:700;color:#2a4f2a;">✓ Proposal updated</div>
       <div class="success-url" id="success-url"></div>
-      <button class="copy-btn" onclick="doCopyLink()">Copy Link</button>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="copy-btn" onclick="doCopyLink()">Copy Link</button>
+        <button class="copy-btn" style="background:#e04d80;" onclick="openSendModal()">Send to Client</button>
+      </div>
     </div>
 
     <div class="section-divider">Client</div>
@@ -368,6 +371,29 @@ include __DIR__ . '/partials/topbar.php';
   </div>
 </div>
 
+<!-- Send modal -->
+<div class="modal-overlay" id="modal-send">
+  <div class="td-modal">
+    <div class="modal-bar"></div>
+    <div class="modal-body">
+      <div class="modal-title">Send to client</div>
+      <div class="modal-msg" style="margin-bottom:14px;">They'll receive a branded email with a secure link.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>To</label>
+        <input type="email" id="sendModalEmail" value="<?= he($prop['client_email']) ?>">
+      </div>
+      <div class="field">
+        <label>Personal note (optional)</label>
+        <textarea id="sendModalNote" rows="3" placeholder="Anything you'd like to add..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions" style="display:flex;gap:8px;">
+      <button class="mbtn" style="width:auto;flex:1;background:#f5e5e5;color:#6b6b6b;" onclick="closeSendModal()">Cancel</button>
+      <button class="mbtn" style="width:auto;flex:1;background:#e04d80;" id="sendModalConfirm" onclick="executeSend()">Send</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const PROPOSAL_ID   = <?= intval($id) ?>;
   const PACKAGES_DATA = <?= json_encode(array_column($packages, null, 'id')) ?>;
@@ -483,6 +509,48 @@ include __DIR__ . '/partials/topbar.php';
 
   function doCopyLink() {
     if (generatedUrl) { navigator.clipboard.writeText(generatedUrl); const b=document.querySelector('.copy-btn'); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy Link',2000); }
+  }
+
+  // ── Send to client ──
+  function openSendModal() {
+    document.getElementById('sendModalEmail').value = document.getElementById('client_email').value || '';
+    document.getElementById('sendModalNote').value = '';
+    document.getElementById('modal-send').classList.add('open');
+  }
+  function closeSendModal() {
+    document.getElementById('modal-send').classList.remove('open');
+  }
+  document.getElementById('modal-send').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeSendModal();
+  });
+
+  async function executeSend() {
+    const to_email = document.getElementById('sendModalEmail').value.trim();
+    const personal_note = document.getElementById('sendModalNote').value.trim();
+    if (!to_email) { showAlert('Missing email', 'Enter an email address.'); return; }
+
+    const btn = document.getElementById('sendModalConfirm');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      const res = await fetch('/taterdash-app/taterdash/send-document.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'proposal', id: PROPOSAL_ID, to_email, personal_note })
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeSendModal();
+        document.querySelector('#success-banner > div').textContent = '✓ Email sent!';
+      } else {
+        showAlert('Send failed', data.error || 'Unknown error');
+      }
+    } catch(e) {
+      showAlert('Connection error', 'Could not reach the server.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Send';
   }
 
   function showAlert(title, msg) { document.getElementById('alert-title').textContent=title; document.getElementById('alert-msg').textContent=msg; document.getElementById('modal-alert').classList.add('open'); }

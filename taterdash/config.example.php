@@ -16,6 +16,10 @@ define('SITE_URL',        'https://mallowfrenchie.com');
 define('ADMIN_PASSWORD',  'YOUR_ADMIN_PASSWORD_HERE');
 define('STRIPE_PAYMENT_URL', '');
 
+define('RESEND_API_KEY',  'YOUR_RESEND_API_KEY_HERE');
+define('MAIL_FROM',       'Mallow Frenchie <hello@mallowfrenchie.com>');
+define('NOTIFY_EMAIL',    'mallowfrenchie@gmail.com');
+
 function db_connect() {
     $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
     $options = [
@@ -76,4 +80,46 @@ function generate_slug($client_name) {
 
 function generate_token() {
     return bin2hex(random_bytes(16));
+}
+
+function send_email(string $to, string $subject, string $html, ?string $attachmentPath = null, ?string $attachmentName = null): bool {
+    $payload = [
+        'from'    => MAIL_FROM,
+        'to'      => $to,
+        'subject' => $subject,
+        'html'    => $html,
+    ];
+    if ($attachmentPath && is_readable($attachmentPath)) {
+        $payload['attachments'] = [[
+            'filename' => $attachmentName ?: basename($attachmentPath),
+            'content'  => base64_encode(file_get_contents($attachmentPath)),
+        ]];
+    }
+
+    $ch = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . RESEND_API_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT    => 15,
+    ]);
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError || $httpCode < 200 || $httpCode >= 300) {
+        try {
+            $pdo = db_connect();
+            log_php_error($pdo, 'send_email', new Exception($curlError ?: "Resend API returned HTTP $httpCode: $response"), ['to' => $to, 'subject' => $subject]);
+        } catch (Throwable $ignored) {
+            // Never let logging failure mask the original error, or throw from send_email().
+        }
+        return false;
+    }
+    return true;
 }
