@@ -24,8 +24,19 @@ other — always confirm which directory you're in before pushing.
 ## Hosting & deploy
 
 - **Host:** Hostinger shared hosting, LiteSpeed server, domain `mallowfrenchie.com`.
-- **Deploy mechanism:** Hostinger's GitHub App watches the `TaterDash` repo's `main`
-  branch and auto-deploys on push — no manual FTP/upload needed for code changes.
+- **Deploy mechanism:** Hostinger's Git integration watches the `TaterDash` repo's
+  `main` branch and auto-deploys on push — but it mirrors the repo into ONE target
+  directory, `public_html/taterdash-app/`, not all of `public_html/`. Confirmed
+  2026-07: pushing a `taterdash/taterdash/*.php` change auto-deployed correctly;
+  pushing an `invoice/index.php` change did not (file stayed 5 days stale until
+  manually copied via File Manager).
+- **`invoice/` and `proposal/` are NOT covered by auto-deploy.** They live directly
+  under `public_html/invoice/` and `public_html/proposal/` (outside the
+  `taterdash-app/` deploy target) so client-facing URLs stay short
+  (`mallowfrenchie.com/invoice/` instead of `mallowfrenchie.com/taterdash-app/invoice/`).
+  Any change to `taterdash/invoice/index.php` or `taterdash/proposal/index.php` must
+  be manually copied into Hostinger File Manager after pushing — auto-deploy will
+  silently skip them.
 - **Live server root:** `public_html/` on Hostinger.
 - **config.php is never committed.** It's gitignored in the TaterDash repo and lives
   only on the server (edited manually via Hostinger File Manager) and locally as an
@@ -36,17 +47,14 @@ other — always confirm which directory you're in before pushing.
   `u335521326_TaterDash_db` database.
 
 ### Path mapping (repo folder → live URL)
-> ⚠️ Confirm this mapping in hPanel's GitHub deploy settings if anything 404s after a
-> push — the exact local-folder → `public_html` mapping hasn't been independently
-> re-verified since initial setup, only inferred from in-file `Upload to:` comments.
 
-| Repo folder | Live path (inferred) | Live URL |
-|---|---|---|
-| `taterdash/admin/` | `public_html/taterdash-app/admin/` | `mallowfrenchie.com/taterdash-app/admin/` |
-| `taterdash/taterdash/` | `public_html/taterdash-app/taterdash/` | (PHP endpoints, not browsed directly) |
-| `taterdash/invoice/` | `public_html/invoice/` | `mallowfrenchie.com/invoice/?id=X` |
-| `taterdash/proposal/` | `public_html/proposal/` | `mallowfrenchie.com/proposal/?id=X` |
-| `taterdash/database/` | *(not deployed — reference SQL only)* | — |
+| Repo folder | Live path | Auto-deploys? | Live URL |
+|---|---|---|---|
+| `taterdash/admin/` | `public_html/taterdash-app/admin/` | ✅ yes | `mallowfrenchie.com/taterdash-app/admin/` |
+| `taterdash/taterdash/` | `public_html/taterdash-app/taterdash/` | ✅ yes | (PHP endpoints, not browsed directly) |
+| `taterdash/invoice/` | `public_html/invoice/` | ❌ **no — manual copy required** | `mallowfrenchie.com/invoice/?t=TOKEN` |
+| `taterdash/proposal/` | `public_html/proposal/` | ❌ **no — manual copy required** | `mallowfrenchie.com/proposal/?t=TOKEN` |
+| `taterdash/database/` | *(not deployed — reference SQL only)* | — | — |
 
 ---
 
