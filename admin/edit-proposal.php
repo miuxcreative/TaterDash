@@ -33,6 +33,8 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
+  <link rel="apple-touch-icon" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
   <title>TaterDash — Edit <?= he($prop['proposal_num']) ?></title>
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@200,300,400,500,600,700,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -44,17 +46,10 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
       --card-rose:#f2d0dc; --dark:#111111; --border:#e8e8e8; --sidebar:280px;
     }
     html,body{height:100%;}
-    body{font-family:'Satoshi',sans-serif;background:#f0f0f0;color:var(--ink);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;}
-    .topbar{background:var(--dark);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-    .topbar-logo{font-size:15px;font-weight:700;color:var(--white);letter-spacing:.02em;}
-    .topbar-logo span{color:var(--pink);}
-    .topbar-actions{display:flex;align-items:center;gap:10px;}
-    .tb-btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:999px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;border:none;transition:opacity .15s;}
-    .tb-btn:hover{opacity:.85;}
-    .tb-btn--pink{background:var(--pink);color:var(--white);}
-    .tb-btn--ghost{background:rgba(255,255,255,.1);color:var(--white);}
-    .layout{display:grid;grid-template-columns:var(--sidebar) 1fr 340px;flex:1;overflow:hidden;height:calc(100vh - 60px);}
-    .nav{background:#111111;display:flex;flex-direction:column;overflow-y:auto;}
+    body{font-family:'Satoshi',sans-serif;background:#f0f0f0;color:var(--ink);-webkit-font-smoothing:antialiased;}
+    /* ── Topbar: see admin/partials/topbar.php for shared markup + styles ── */
+    .layout{display:grid;grid-template-columns:1fr 340px;margin-left:var(--sidebar);margin-top:52px;height:calc(100vh - 52px);overflow:hidden;}
+    .nav{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar);background:#111111;display:flex;flex-direction:column;overflow-y:auto;z-index:300;}
     .nav-brand{padding:24px 20px 16px;flex-shrink:0;}
     .nav-brand-logo{height:40px;width:auto;display:block;margin-bottom:12px;}
     .nav-brand-name{font-size:15px;font-weight:700;color:#ffffff;}
@@ -160,13 +155,11 @@ function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 </head>
 <body>
 
-<div class="topbar">
-  <div class="topbar-logo">Tater<span>Dash</span></div>
-  <div class="topbar-actions">
-    <a class="tb-btn tb-btn--ghost" href="/taterdash-app/admin/">← Dashboard</a>
-    <a class="tb-btn tb-btn--ghost" href="/taterdash-app/taterdash/logout.php">Logout</a>
-  </div>
-</div>
+<?php
+$topbar_title = 'Edit Proposal';
+$topbar_sidebar_width = '280px';
+include __DIR__ . '/partials/topbar.php';
+?>
 
 <div class="layout">
   <nav class="nav">

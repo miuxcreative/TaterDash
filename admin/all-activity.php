@@ -67,6 +67,8 @@ function date_label(string $dt): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link rel="icon" type="image/png" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
+<link rel="apple-touch-icon" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
 <title>All Activity — TaterDash</title>
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&display=swap" rel="stylesheet">
@@ -94,10 +96,7 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
 .nav-profile-link { display: block; font-size: 12px; color: #6b6b6b; text-decoration: none; padding: 4px 0; transition: color .12s; }
 .nav-profile-link:hover { color: rgba(255,255,255,0.6); }
 
-.topbar { position: fixed; top: 0; left: 240px; right: 0; height: 52px; background: #ffffff; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 200; }
-.topbar-title { font-size: 18px; font-weight: 700; color: #191919; }
-.tb-ghost { font-size: 12px; font-weight: 500; color: #6b6b6b; text-decoration: none; padding: 7px 12px; border-radius: 999px; transition: background .12s; }
-.tb-ghost:hover { background: #f5f5f5; }
+/* ── Topbar: see admin/partials/topbar.php for shared markup + styles ── */
 
 .main { margin-left: 240px; padding: 52px 0 0; }
 .main-inner { padding: 32px; max-width: 760px; }
@@ -179,10 +178,7 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
     </div>
 </nav>
 
-<div class="topbar">
-    <div class="topbar-title">All Activity</div>
-    <a class="tb-ghost" href="/taterdash-app/admin/">← Dashboard</a>
-</div>
+<?php $topbar_title = 'All Activity'; include __DIR__ . '/partials/topbar.php'; ?>
 
 <div class="main">
 <div class="main-inner">
