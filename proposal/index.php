@@ -533,7 +533,7 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
 </div>
 
 <div class="footer">
-  <span>MallowFrenchie · G Space Agency LLC · Palmetto Bay, FL · @mallowfrenchie</span>
+  <span>MallowFrenchie &middot; @mallowfrenchie</span>
 </div>
 
 <script>

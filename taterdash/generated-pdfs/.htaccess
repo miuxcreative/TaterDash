@@ -1,0 +1,9 @@
+# TaterDash — Signed proposal PDFs must never be directly web-accessible.
+# Only taterdash/download-pdf.php (session-checked) may serve these files.
+
+# Apache 2.4+
+Require all denied
+
+# Apache 2.2 and older
+Order allow,deny
+Deny from all

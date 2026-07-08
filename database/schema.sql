@@ -51,6 +51,7 @@ CREATE TABLE td_proposals (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   proposal_num    VARCHAR(50) NOT NULL UNIQUE,
   token           VARCHAR(32) UNIQUE,
+  pdf_path        VARCHAR(255),
   client_id       INT,
   client_name     VARCHAR(255) NOT NULL,
   client_email    VARCHAR(255) NOT NULL,

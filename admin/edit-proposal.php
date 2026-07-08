@@ -195,6 +195,11 @@ include __DIR__ . '/partials/topbar.php';
         <div class="form-title">Edit Proposal</div>
         <div class="invoice-badge"><?= he($prop['proposal_num']) ?></div>
       </div>
+      <?php if (!empty($prop['pdf_path'])): ?>
+      <a href="/taterdash-app/taterdash/download-pdf.php?id=<?= (int)$id ?>" target="_blank" class="btn btn-ghost" style="text-decoration:none;">
+        <i class="ti ti-file-download"></i>&nbsp; Signed PDF
+      </a>
+      <?php endif; ?>
     </div>
     <div class="form-sub">Changes save over the existing proposal — the client link stays the same.</div>
 

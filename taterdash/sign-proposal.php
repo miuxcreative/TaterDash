@@ -7,6 +7,7 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/email-templates.php';
+require_once __DIR__ . '/pdf-proposal.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -54,9 +55,14 @@ try {
 
     log_event($pdo, 'signed', 'proposal', $proposal_id, $proposal['proposal_num'], $proposal['client_name']);
 
-    // Best-effort — send_email() logs its own failures and never throws, so a
-    // failed notification must never block the signature response.
-    send_email($proposal['client_email'], 'Proposal Signed — ' . $proposal['proposal_num'], email_proposal_signed_client($proposal));
+    // Best-effort — render_proposal_pdf() and send_email() both log their own
+    // failures and never throw, so neither can block the signature response.
+    $pdfPath = render_proposal_pdf($pdo, $proposal_id);
+    if ($pdfPath) {
+        $pdo->prepare("UPDATE td_proposals SET pdf_path = ? WHERE id = ?")->execute([$pdfPath, $proposal_id]);
+    }
+
+    send_email($proposal['client_email'], 'Proposal Signed — ' . $proposal['proposal_num'], email_proposal_signed_client($proposal), $pdfPath);
     if (defined('NOTIFY_EMAIL') && NOTIFY_EMAIL) {
         send_email(NOTIFY_EMAIL, 'Proposal Signed by ' . $signer_name, email_proposal_signed_notify($proposal, $signer_name));
     }

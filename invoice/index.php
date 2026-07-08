@@ -42,6 +42,8 @@ if ($invoice['status'] === 'sent') {
     $pdo->prepare("UPDATE td_invoices SET status = 'viewed' WHERE id = ?")->execute([$id]);
 }
 
+$settings = get_settings($pdo);
+
 // ── Format helpers ──
 function fmt_money($n) { return '$' . number_format(floatval($n), 2); }
 function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
@@ -203,11 +205,10 @@ function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
   <div class="parties">
     <div>
       <div class="pty-eyebrow">From</div>
-      <div class="pty-name">G Space Agency LLC</div>
+      <div class="pty-name"><?= htmlspecialchars($settings['company_name']) ?></div>
       <div class="pty-detail">
-        mallowfrenchie@gmail.com<br>
-        5855 Paradise Point Drive<br>
-        Palmetto Bay, FL 33157
+        <?= htmlspecialchars($settings['company_email']) ?><br>
+        <?= nl2br(htmlspecialchars($settings['company_address'])) ?>
       </div>
     </div>
     <div style="text-align:right;">
@@ -267,7 +268,7 @@ function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
       <div class="pay-methods">
         <div class="pay-row"><b>PayPal</b> mallowfrenchie@gmail.com</div>
         <div class="pay-row"><b>Zelle</b> 305-333-7905</div>
-        <div class="pay-row"><b>Check</b> payable to G Space Agency LLC · 5855 Paradise Point Drive, Palmetto Bay FL 33157</div>
+        <div class="pay-row"><b>Check</b> payable to <?= htmlspecialchars($settings['company_name']) ?><?= $settings['company_address'] ? ' · ' . htmlspecialchars($settings['company_address']) : '' ?></div>
       </div>
       <?php if (!STRIPE_PAYMENT_URL): ?>
       <div class="pay-note">Online payment via card coming soon.</div>
@@ -282,7 +283,7 @@ function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
 
   <div class="ftr">
     <div class="ftr-wordmark">MallowFrenchie</div>
-    <div class="ftr-mid">G Space Agency LLC · mallowfrenchie@gmail.com</div>
+    <div class="ftr-mid"><?= htmlspecialchars($settings['company_name']) ?> &middot; <?= htmlspecialchars($settings['company_email']) ?></div>
     <div class="ftr-handle">@mallowfrenchie</div>
   </div>
 </div>

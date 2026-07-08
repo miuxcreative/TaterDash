@@ -521,8 +521,8 @@
       <div class="p-parties">
         <div>
           <div class="p-ey">From</div>
-          <div class="p-name">G Space Agency LLC</div>
-          <div class="p-detail">mallowfrenchie@gmail.com<br>Palmetto Bay, FL 33157</div>
+          <div class="p-name" id="p-company">Mallow Frenchie</div>
+          <div class="p-detail" id="p-company-detail">mallowfrenchie@gmail.com</div>
         </div>
         <div style="text-align:right;">
           <div class="p-ey">Bill To</div>
@@ -571,6 +571,32 @@
     if (p.get('contact_name')) document.getElementById('contact_name').value = p.get('contact_name');
     if (typeof updatePreview === 'function') updatePreview();
   })();
+
+  // ── Company info (From block preview) + due date default ──
+  let PAYMENT_TERMS_DAYS = 14;
+  function applyDueDateDefault() {
+    const dueEl = document.getElementById('due_date');
+    const issueVal = document.getElementById('issue_date').value;
+    if (!dueEl.value && issueVal) {
+      const d = new Date(issueVal + 'T00:00:00');
+      d.setDate(d.getDate() + PAYMENT_TERMS_DAYS);
+      dueEl.value = d.toISOString().split('T')[0];
+      if (typeof updatePreview === 'function') updatePreview();
+    }
+  }
+  document.getElementById('issue_date').addEventListener('change', applyDueDateDefault);
+
+  fetch('/taterdash-app/taterdash/get-settings.php')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) return;
+      document.getElementById('p-company').textContent = d.settings.company_name;
+      document.getElementById('p-company-detail').innerHTML =
+        [d.settings.company_email, d.settings.company_address].filter(Boolean).join('<br>').replace(/\n/g, '<br>');
+      PAYMENT_TERMS_DAYS = parseInt(d.settings.payment_terms_days, 10) || 14;
+      applyDueDateDefault();
+    })
+    .catch(() => {});
 
   // ── Client autocomplete ──
   let CLIENTS_DATA = [];

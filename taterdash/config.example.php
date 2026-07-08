@@ -82,6 +82,45 @@ function generate_token() {
     return bin2hex(random_bytes(16));
 }
 
+function get_settings(PDO $pdo): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $values = [
+        'company_name'             => 'Mallow Frenchie',
+        'company_email'            => 'mallowfrenchie@gmail.com',
+        'company_address'          => '',
+        'stat_followers'           => '',
+        'stat_impressions'         => '',
+        'stat_audience_age'        => '',
+        'stat_audience_age_label'  => '',
+        'stat_audience_women'      => '',
+        'stat_audience_men'        => '',
+        'stat_partnerships'        => '',
+        'contact_email'            => 'mallowfrenchie@gmail.com',
+        'instagram_handle'         => '@mallowfrenchie',
+        'payment_terms_days'       => '14',
+        'proposal_validity_days'   => '30',
+        'deposit_percent'          => '50',
+        'about_blurb'              => '',
+    ];
+    try {
+        $rows = $pdo->query("SELECT setting_key, setting_value FROM td_settings")->fetchAll();
+        foreach ($rows as $row) {
+            $values[$row['setting_key']] = $row['setting_value'];
+        }
+    } catch (Exception $e) {
+        // td_settings may not exist yet on an unmigrated install — fall back to defaults.
+    }
+    $cache = $values;
+    return $cache;
+}
+
+function get_setting(PDO $pdo, string $key, string $default = ''): string {
+    $settings = get_settings($pdo);
+    return $settings[$key] ?? $default;
+}
+
 function send_email(string $to, string $subject, string $html, ?string $attachmentPath = null, ?string $attachmentName = null): bool {
     $payload = [
         'from'    => MAIL_FROM,

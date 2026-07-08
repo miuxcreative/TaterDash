@@ -57,11 +57,11 @@ try {
 // ── Activity ──────────────────────────────────────────────────────────────────
 $activity = $pdo->query("
     SELECT 'invoice' row_type, id, token, client_name, client_email, invoice_num ref_num,
-           invoice_num sub_label, created_at, status, total
+           invoice_num sub_label, created_at, status, total, NULL pdf_path
     FROM td_invoices
     UNION ALL
     SELECT 'proposal' row_type, id, token, client_name, client_email, proposal_num ref_num,
-           COALESCE(campaign_name,'') sub_label, created_at, status, total
+           COALESCE(campaign_name,'') sub_label, created_at, status, total, pdf_path
     FROM td_proposals
     ORDER BY created_at DESC")->fetchAll();
 
@@ -129,6 +129,9 @@ function row_actions(array $row): string {
             $dd .= '<a class="dd-item dd-last" href="'.$edit.'">Edit</a>';
         } elseif (in_array($st,['signed','accepted'])) {
             $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open proposal</a>';
+            if (!empty($row['pdf_path'])) {
+                $dd .= '<a class="dd-item" href="/taterdash-app/taterdash/download-pdf.php?id='.$id.'" target="_blank">Signed PDF</a>';
+            }
             $dd .= '<button class="dd-item dd-pink dd-last" onclick="createInvoiceFromProposal('.$id.')">Create invoice</button>';
         } else {
             $dd .= '<a class="dd-item dd-last" href="'.$open.'" target="_blank">Open proposal</a>';

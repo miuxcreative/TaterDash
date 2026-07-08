@@ -18,6 +18,7 @@ if (!$id) {
 }
 
 $pdo = db_connect();
+$settings = get_settings($pdo);
 
 $inv = $pdo->prepare("SELECT * FROM td_invoices WHERE id = ?");
 $inv->execute([$id]);
@@ -402,8 +403,8 @@ include __DIR__ . '/partials/topbar.php';
       <div class="p-parties">
         <div>
           <div class="p-ey">From</div>
-          <div class="p-name">G Space Agency LLC</div>
-          <div class="p-detail">mallowfrenchie@gmail.com<br>Palmetto Bay, FL 33157</div>
+          <div class="p-name"><?= he($settings['company_name']) ?></div>
+          <div class="p-detail"><?= he($settings['company_email']) ?><br><?= nl2br(he($settings['company_address'])) ?></div>
         </div>
         <div style="text-align:right;">
           <div class="p-ey">Bill To</div>
@@ -481,6 +482,19 @@ include __DIR__ . '/partials/topbar.php';
 <script>
   const INVOICE_ID = <?= intval($id) ?>;
   const SITE_URL   = '<?= SITE_URL ?>';
+  const PAYMENT_TERMS_DAYS = <?= (int)($settings['payment_terms_days'] ?: 14) ?>;
+
+  // ── Default due date off issue date, but never clobber an existing value ──
+  document.getElementById('issue_date').addEventListener('change', () => {
+    const dueEl = document.getElementById('due_date');
+    const issueVal = document.getElementById('issue_date').value;
+    if (!dueEl.value && issueVal) {
+      const d = new Date(issueVal + 'T00:00:00');
+      d.setDate(d.getDate() + PAYMENT_TERMS_DAYS);
+      dueEl.value = d.toISOString().split('T')[0];
+      updatePreview();
+    }
+  });
 
   // ── Seed existing line items from PHP ──
   const EXISTING_ITEMS = <?= json_encode(array_values($line_items)) ?>;

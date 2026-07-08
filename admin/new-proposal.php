@@ -14,6 +14,8 @@ $pdo = db_connect();
 
 $packages  = $pdo->query("SELECT * FROM td_packages WHERE is_active = 1 ORDER BY sort_order")->fetchAll();
 $industries = $pdo->query("SELECT DISTINCT industry FROM td_partners WHERE is_active = 1 ORDER BY industry")->fetchAll(PDO::FETCH_COLUMN);
+$settings = get_settings($pdo);
+$default_expiry = date('Y-m-d', strtotime('+' . (int)($settings['proposal_validity_days'] ?: 30) . ' days'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -332,7 +334,7 @@ include __DIR__ . '/partials/topbar.php';
     <div class="field-group single">
       <div class="field">
         <label>Proposal expires on</label>
-        <input type="date" id="expiry_date" oninput="updatePreview()">
+        <input type="date" id="expiry_date" value="<?= htmlspecialchars($default_expiry) ?>" oninput="updatePreview()">
         <div class="expiry-quick">
           <button class="expiry-btn" onclick="setExpiry(30)">+30 days</button>
           <button class="expiry-btn" onclick="setExpiry(60)">+60 days</button>

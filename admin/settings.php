@@ -7,6 +7,7 @@ if (empty($_SESSION['td_user'])) {
 require_once __DIR__ . '/../taterdash/config.php';
 $pdo  = db_connect();
 $user = $_SESSION['td_user'];
+$settings = get_settings($pdo);
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,13 +51,43 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
 .main-inner { padding: 32px; }
 .page-title { font-size: 28px; font-weight: 300; color: #191919; margin-bottom: 28px; }
 
-.coming-soon {
+.settings-wrap { max-width: 640px; display: flex; flex-direction: column; gap: 20px; }
+.settings-card {
     background: #ffffff; border: 1px solid #e8e8e8;
-    border-radius: 12px; padding: 56px 40px; text-align: center;
+    border-radius: 12px; padding: 32px;
 }
-.coming-soon-icon  { font-size: 32px; margin-bottom: 16px; }
-.coming-soon-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-.coming-soon-sub   { font-size: 14px; color: #6b6b6b; }
+.settings-card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.settings-card-sub   { font-size: 13px; color: #6b6b6b; margin-bottom: 24px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+.field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.field-group.triple { grid-template-columns: 1fr 1fr 1fr; }
+.field-group .field { margin-bottom: 0; }
+.field label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6b6b;
+}
+.field input, .field textarea {
+    font-family: inherit; font-size: 13.5px; color: #191919;
+    background: #fff; border: 1px solid #e8e8e8; border-radius: 8px;
+    padding: 9px 12px; outline: none; transition: border-color .15s; width: 100%;
+}
+.field input:focus, .field textarea:focus { border-color: #e04d80; }
+.field textarea { resize: vertical; min-height: 64px; }
+.field-hint { font-size: 11px; color: #b0b0b0; }
+.save-btn {
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    background: #e04d80; color: #fff; border: none;
+    border-radius: 999px; padding: 11px 24px; cursor: pointer; transition: opacity .15s;
+}
+.save-btn:hover { opacity: .9; }
+.save-btn-sticky { align-self: flex-start; }
+.toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #111111; color: #ffffff; padding: 12px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s; z-index: 600; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -92,13 +123,152 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
 <div class="main">
 <div class="main-inner">
     <h1 class="page-title">Settings</h1>
-    <div class="coming-soon">
-        <div class="coming-soon-icon">⚙️</div>
-        <div class="coming-soon-title">Coming soon</div>
-        <div class="coming-soon-sub">Settings will live here — account, branding, notifications.</div>
+    <div class="settings-wrap">
+
+        <div class="settings-card">
+            <div class="settings-card-title">Company Info</div>
+            <div class="settings-card-sub">Shown on invoices, proposals, and the signed-proposal PDF.</div>
+
+            <div class="field">
+                <label>Company Name</label>
+                <input type="text" id="company_name" value="<?= htmlspecialchars($settings['company_name']) ?>">
+            </div>
+            <div class="field">
+                <label>Company Email</label>
+                <input type="email" id="company_email" value="<?= htmlspecialchars($settings['company_email']) ?>">
+            </div>
+            <div class="field">
+                <label>Company Address</label>
+                <textarea id="company_address" rows="3"><?= htmlspecialchars($settings['company_address']) ?></textarea>
+                <div class="field-hint">Used for "Bill From" and check-payment instructions on invoices.</div>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-title">Media Kit Stats</div>
+            <div class="settings-card-sub">Shown in the stats bar on every proposal.</div>
+
+            <div class="field-group">
+                <div class="field">
+                    <label>Followers</label>
+                    <input type="text" id="stat_followers" value="<?= htmlspecialchars($settings['stat_followers']) ?>">
+                </div>
+                <div class="field">
+                    <label>Monthly Impressions</label>
+                    <input type="text" id="stat_impressions" value="<?= htmlspecialchars($settings['stat_impressions']) ?>">
+                </div>
+            </div>
+            <div class="field-group">
+                <div class="field">
+                    <label>Audience Age %</label>
+                    <input type="text" id="stat_audience_age" value="<?= htmlspecialchars($settings['stat_audience_age']) ?>">
+                </div>
+                <div class="field">
+                    <label>Audience Age Label</label>
+                    <input type="text" id="stat_audience_age_label" value="<?= htmlspecialchars($settings['stat_audience_age_label']) ?>">
+                </div>
+            </div>
+            <div class="field-group triple">
+                <div class="field">
+                    <label>Women %</label>
+                    <input type="text" id="stat_audience_women" value="<?= htmlspecialchars($settings['stat_audience_women']) ?>">
+                </div>
+                <div class="field">
+                    <label>Men %</label>
+                    <input type="text" id="stat_audience_men" value="<?= htmlspecialchars($settings['stat_audience_men']) ?>">
+                </div>
+                <div class="field">
+                    <label>Partnerships</label>
+                    <input type="text" id="stat_partnerships" value="<?= htmlspecialchars($settings['stat_partnerships']) ?>">
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-title">Contact &amp; Brand</div>
+            <div class="settings-card-sub">Public-facing contact info and bio.</div>
+
+            <div class="field-group">
+                <div class="field">
+                    <label>Contact Email</label>
+                    <input type="email" id="contact_email" value="<?= htmlspecialchars($settings['contact_email']) ?>">
+                </div>
+                <div class="field">
+                    <label>Instagram Handle</label>
+                    <input type="text" id="instagram_handle" value="<?= htmlspecialchars($settings['instagram_handle']) ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label>About Blurb</label>
+                <textarea id="about_blurb" rows="4"><?= htmlspecialchars($settings['about_blurb']) ?></textarea>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-title">Documents</div>
+            <div class="settings-card-sub">Defaults applied when creating new invoices and proposals.</div>
+
+            <div class="field-group triple">
+                <div class="field">
+                    <label>Payment Terms (days)</label>
+                    <input type="number" id="payment_terms_days" min="0" value="<?= htmlspecialchars($settings['payment_terms_days']) ?>">
+                </div>
+                <div class="field">
+                    <label>Proposal Validity (days)</label>
+                    <input type="number" id="proposal_validity_days" min="0" value="<?= htmlspecialchars($settings['proposal_validity_days']) ?>">
+                </div>
+                <div class="field">
+                    <label>Deposit %</label>
+                    <input type="number" id="deposit_percent" min="0" max="100" value="<?= htmlspecialchars($settings['deposit_percent']) ?>">
+                </div>
+            </div>
+        </div>
+
+        <button class="save-btn save-btn-sticky" id="saveBtn" onclick="saveSettings()">Save Changes</button>
     </div>
 </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
+<script>
+const SETTINGS_FIELDS = [
+    'company_name', 'company_email', 'company_address',
+    'stat_followers', 'stat_impressions', 'stat_audience_age', 'stat_audience_age_label',
+    'stat_audience_women', 'stat_audience_men', 'stat_partnerships',
+    'contact_email', 'instagram_handle', 'about_blurb',
+    'payment_terms_days', 'proposal_validity_days', 'deposit_percent',
+];
+
+async function saveSettings() {
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+        const payload = {};
+        SETTINGS_FIELDS.forEach(key => {
+            payload[key] = document.getElementById(key).value.trim();
+        });
+        const d = await fetch('/taterdash-app/taterdash/save-settings.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json());
+        if (d.success) showToast('Saved!');
+        else showToast('Error: ' + (d.error || 'Failed.'));
+    } catch (e) {
+        showToast('Network error.');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+}
+
+let _tt;
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('show'), 2600);
+}
+</script>
 </body>
 </html>

@@ -25,6 +25,11 @@ $clients = $pdo->query("
     ORDER BY c.company ASC
 ")->fetchAll();
 
+$unresolved_error_count = 0;
+try {
+    $unresolved_error_count = (int) $pdo->query("SELECT COUNT(*) FROM td_error_log WHERE is_resolved=0")->fetchColumn();
+} catch (Exception $e) {}
+
 const VIP_THRESHOLD = 2000;
 const DORMANT_DAYS  = 90;
 
@@ -219,6 +224,10 @@ body { font-family: 'Satoshi', sans-serif; background: #f5f5f5; color: #191919; 
     <a class="nav-item" href="/taterdash-app/admin/"><i class="ti ti-layout-dashboard"></i> Dashboard</a>
     <a class="nav-item" href="/taterdash-app/admin/all-activity.php"><i class="ti ti-list"></i> All Activity</a>
     <a class="nav-item active" href="/taterdash-app/admin/clients.php"><i class="ti ti-users"></i> Clients</a>
+    <a class="nav-item" href="/taterdash-app/admin/errors.php" style="display:flex;align-items:center;">
+        <i class="ti ti-alert-triangle"></i> Errors
+        <?php if ($unresolved_error_count > 0): ?><span style="margin-left:auto;background:#e04d80;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;"><?= $unresolved_error_count ?></span><?php endif; ?>
+    </a>
     <div class="nav-spacer"></div>
     <hr class="nav-divider">
     <div class="nav-profile">
