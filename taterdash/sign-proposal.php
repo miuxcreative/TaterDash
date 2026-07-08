@@ -11,12 +11,19 @@ require_once __DIR__ . '/pdf-proposal.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
-$proposal_id  = intval($data['proposal_id']  ?? 0);
-$signer_name  = trim($data['signer_name']    ?? '');
+$proposal_id     = intval($data['proposal_id']  ?? 0);
+$signer_name     = trim($data['signer_name']    ?? '');
+$signer_email_in = trim($data['signer_email']   ?? '');
+$signature_image = $data['signature_image']     ?? '';
 
 if (!$proposal_id || !$signer_name) {
     echo json_encode(['success' => false, 'error' => 'Missing required fields']);
     exit;
+}
+
+// Only accept a well-formed PNG data URL — anything else is stored as null rather than trusted as-is.
+if (!preg_match('/^data:image\/png;base64,[A-Za-z0-9+\/=]+$/', $signature_image)) {
+    $signature_image = null;
 }
 
 try {
@@ -40,15 +47,16 @@ try {
         exit;
     }
 
-    $ip         = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
-    $ip_direct  = $_SERVER['REMOTE_ADDR'] ?? '';
-    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    $signed_at  = date('Y-m-d H:i:s');
+    $ip           = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+    $ip_direct    = $_SERVER['REMOTE_ADDR'] ?? '';
+    $user_agent   = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $signed_at    = date('Y-m-d H:i:s');
+    $signer_email = filter_var($signer_email_in, FILTER_VALIDATE_EMAIL) ? $signer_email_in : $proposal['client_email'];
 
     $pdo->prepare("
-        INSERT INTO td_signatures (proposal_id, signer_name, signer_email, signed_at, ip_address, ip_direct, user_agent)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ")->execute([$proposal_id, $signer_name, $proposal['client_email'], $signed_at, $ip, $ip_direct, $user_agent]);
+        INSERT INTO td_signatures (proposal_id, signer_name, signer_email, signature_image, signed_at, ip_address, ip_direct, user_agent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ")->execute([$proposal_id, $signer_name, $signer_email, $signature_image, $signed_at, $ip, $ip_direct, $user_agent]);
 
     $pdo->prepare("UPDATE td_proposals SET status = 'signed' WHERE id = ?")
         ->execute([$proposal_id]);
@@ -62,7 +70,7 @@ try {
         $pdo->prepare("UPDATE td_proposals SET pdf_path = ? WHERE id = ?")->execute([$pdfPath, $proposal_id]);
     }
 
-    send_email($proposal['client_email'], 'Proposal Signed — ' . $proposal['proposal_num'], email_proposal_signed_client($proposal), $pdfPath);
+    send_email($signer_email, 'Proposal Signed — ' . $proposal['proposal_num'], email_proposal_signed_client($proposal), $pdfPath);
     if (defined('NOTIFY_EMAIL') && NOTIFY_EMAIL) {
         send_email(NOTIFY_EMAIL, 'Proposal Signed by ' . $signer_name, email_proposal_signed_notify($proposal, $signer_name));
     }

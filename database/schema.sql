@@ -73,6 +73,7 @@ CREATE TABLE td_signatures (
   proposal_id     INT NOT NULL,
   signer_name     VARCHAR(255) NOT NULL,
   signer_email    VARCHAR(255) NOT NULL,
+  signature_image MEDIUMTEXT,
   signed_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   ip_address      VARCHAR(50),
   ip_direct       VARCHAR(50),

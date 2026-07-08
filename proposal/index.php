@@ -33,7 +33,6 @@ if ($p['status'] === 'sent') {
 }
 
 // Check signature
-$sig = null;
 $sigStmt = $pdo->prepare("SELECT * FROM td_signatures WHERE proposal_id = ? ORDER BY signed_at ASC LIMIT 1");
 $sigStmt->execute([$id]);
 $sig = $sigStmt->fetch();
@@ -44,18 +43,6 @@ $expired = $p['expiry_date'] && $p['expiry_date'] < date('Y-m-d');
 // Deliverables
 $deliverables = json_decode($p['deliverables'] ?? '[]', true) ?: [];
 
-// Partners
-$partner_industries = json_decode($p['partner_industries'] ?? '[]', true) ?: [];
-$partners_by_industry = [];
-if (!empty($partner_industries)) {
-    $placeholders = implode(',', array_fill(0, count($partner_industries), '?'));
-    $pStmt = $pdo->prepare("SELECT * FROM td_partners WHERE industry IN ($placeholders) AND is_active = 1 ORDER BY industry, sort_order");
-    $pStmt->execute($partner_industries);
-    foreach ($pStmt->fetchAll() as $partner) {
-        $partners_by_industry[$partner['industry']][] = $partner;
-    }
-}
-
 // Package name
 $package_name = null;
 if ($p['package_id']) {
@@ -65,12 +52,48 @@ if ($p['package_id']) {
     $package_name = $pkg['name'] ?? null;
 }
 
+$settings = get_settings($pdo);
+
+// ── Image slots — picks a random photo from proposal/images/ each load.
+// Naming/pairing is TODO; for now every photo is fair game for either slot.
+function random_proposal_image(): ?string {
+    $dir = __DIR__ . '/images';
+    if (!is_dir($dir)) return null;
+    $files = array_merge(
+        glob($dir . '/*.jpg') ?: [],
+        glob($dir . '/*.jpeg') ?: [],
+        glob($dir . '/*.png') ?: [],
+        glob($dir . '/*.webp') ?: []
+    );
+    if (empty($files)) return null;
+    return 'images/' . basename($files[array_rand($files)]);
+}
+
+$IMG_HERO_PHOTO  = random_proposal_image() ?? 'https://miuxcreative.github.io/mallowfrenchie/images/proposal-hero.jpg';
+$IMG_ABOUT_PHOTO = random_proposal_image() ?? 'https://miuxcreative.github.io/mallowfrenchie/images/proposal-about.jpg';
+
 function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 function fmtD($d) {
     if (!$d) return '—';
     return date('F j, Y', strtotime($d));
 }
 function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
+
+$hero_title = $p['campaign_name'] ?: $p['client_name'];
+$hero_sub   = $p['notes'] ?: ('A 3× Forbes-featured French Bulldog with ' . he($settings['stat_followers']) . ' devoted followers. Here\'s what we\'ll make together.');
+$pkg_name   = $p['campaign_name'] ?: ($package_name ?? 'Custom Package');
+
+// ── Signed-state / confirmation markup, shared between the fresh-sign JS swap and a returning-visitor page load ──
+function render_signed_state($signerName, $signedAtIso) {
+    $when = date('F j, Y \a\t g:i A', strtotime($signedAtIso));
+    return '
+      <div class="signed-state">
+        <div class="signed-icon-box"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 13l4 4L19 7" stroke="#e04d80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="signed-title">Signed!</div>
+        <div class="signed-sub">A copy is on its way to your inbox. Thank you, ' . he($signerName) . ' — we\'re excited to work together.</div>
+        <div class="signed-meta">Signed by <strong>' . he($signerName) . '</strong> on <strong>' . he($when) . '</strong></div>
+      </div>';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -79,470 +102,323 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
   <link rel="apple-touch-icon" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
-  <title>Partnership Proposal — MallowFrenchie × <?= he($p['client_name']) ?></title>
+  <title>Partnership Proposal · Mallow × <?= he($p['client_name']) ?></title>
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@200,300,400,500,600,700,800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --pink:      #e04d80;
-      --card-rose: #f2d0dc;
-      --dark:      #111111;
-      --blush:     #faf0f0;
-      --ink:       #191919;
-      --ink-mid:   #6b6b6b;
-      --border:    #e8e8e8;
-      --white:     #ffffff;
+      --ink:#191919; --ink-mid:#6b6b6b; --ink-light:#b0b0b0;
+      --white:#ffffff; --blush:#faf0f0; --blush-dark:#f5e5e5;
+      --pink:#e04d80; --card-rose:#f2d0dc; --card-sand:#e6d5b8;
+      --card-sky:#c4dde8; --dark:#111111; --border:rgba(0,0,0,0.08);
     }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: 'Satoshi', sans-serif;
-      background: #f0f0f0;
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { font-family:'Satoshi',sans-serif; background:var(--white); color:var(--ink); -webkit-font-smoothing:antialiased; }
+    .wrap { max-width:1040px; margin:0 auto; padding:0 32px; }
+    section { padding:96px 0; }
+
+    .eyebrow { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--pink); }
+    .title { font-size:clamp(32px,4vw,48px); font-weight:300; letter-spacing:-0.02em; line-height:1.1; margin-top:14px; }
+    .title strong { font-weight:700; }
+    .title em { font-style:italic; font-weight:800; }
+
+    /* ===== HERO ===== */
+    .hero { background:var(--blush); padding:0; }
+    .hero-grid { display:grid; grid-template-columns:1.1fr 1fr; min-height:82vh; align-items:center; gap:56px; }
+    .hero-copy { padding:80px 0; }
+    .hero-name { font-size:clamp(52px,6vw,80px); font-weight:300; letter-spacing:-0.02em; line-height:1.05; margin-top:18px; }
+    .hero-name em { font-style:italic; font-weight:800; }
+    .hero-sub { font-size:17px; color:var(--ink-mid); line-height:1.7; margin-top:24px; max-width:44ch; }
+    .hero-cta { display:inline-block; margin-top:36px; background:var(--card-rose); color:var(--ink); padding:16px 48px; border-radius:999px; font-size:14px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; text-decoration:none; transition:transform .15s ease; }
+    .hero-cta:hover { transform:translateY(-2px); }
+    .hero-photo { align-self:stretch; position:relative; background:var(--card-rose); border-radius:0 0 0 200px; min-height:520px; display:grid; place-items:center; font-size:120px; overflow:hidden; }
+    .hero-photo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+
+    /* ===== STAT BAND (media-kit style) ===== */
+    .stats { background:var(--white); padding:64px 0; border-bottom:1px solid var(--blush-dark); }
+    .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:32px; text-align:center; }
+    .stat-num { font-size:clamp(36px,4vw,52px); font-weight:800; letter-spacing:-0.02em; }
+    .stat-label { font-size:12px; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-mid); margin-top:6px; }
+
+    /* ===== ABOUT ===== */
+    .about-grid { display:grid; grid-template-columns:1fr 1.2fr; gap:64px; align-items:center; }
+    .about-photo { height:380px; border-radius:999px; background:var(--card-sky); display:grid; place-items:center; font-size:80px; position:relative; overflow:hidden; }
+    .about-photo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .about-body { font-size:17px; line-height:1.8; color:var(--ink-mid); margin-top:20px; }
+    .about-body b { color:var(--ink); }
+    .press-strip { display:flex; gap:36px; margin-top:32px; align-items:center; font-weight:800; font-style:italic; font-size:18px; color:var(--ink-light); }
+
+    /* ===== THE PARTNERSHIP (deliverables) ===== */
+    .deliver { background:var(--blush); }
+    .pkg-card { background:var(--card-rose); border-radius:20px; padding:44px 40px; margin-top:44px; display:grid; grid-template-columns:1.4fr 1fr; gap:48px; }
+    .pkg-name { font-style:italic; font-weight:800; font-size:24px; }
+    .pkg-list { list-style:none; margin-top:24px; }
+    .pkg-list li { padding:12px 0; border-bottom:1px solid rgba(0,0,0,0.08); font-size:15px; display:flex; gap:12px; }
+    .pkg-list li::before { content:'🐾'; font-size:13px; }
+    .pkg-price-box { text-align:right; display:flex; flex-direction:column; justify-content:space-between; }
+    .pkg-price-label { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--pink); }
+    .pkg-price { font-size:clamp(44px,5vw,64px); font-weight:200; letter-spacing:-0.03em; margin-top:8px; }
+    .pkg-valid { font-size:12px; color:var(--ink-mid); }
+
+    /* ===== TIMELINE ===== */
+    .tl-row { display:grid; grid-template-columns:200px 1fr auto; gap:40px; padding:28px 0; border-bottom:1px solid #e8e8e8; align-items:baseline; }
+    .tl-row:first-of-type { border-top:1px solid #e8e8e8; margin-top:44px; }
+    .tl-phase { font-size:18px; font-weight:700; }
+    .tl-detail { font-size:14px; color:var(--ink-mid); line-height:1.6; }
+    .tl-when { font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--pink); white-space:nowrap; }
+
+    /* ===== SIGNATURE (dark cover) ===== */
+    .sign { background:var(--dark); color:var(--white); }
+    .sign-grid { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:start; }
+    .sign .title { color:var(--white); }
+    .sign-terms { font-size:14px; line-height:1.8; color:rgba(255,255,255,0.6); margin-top:24px; }
+    .sign-form { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:36px; }
+    .sf-label { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--pink); display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; margin-top:22px; }
+    .sf-label:first-child { margin-top:0; }
+    .sf-clear { font-size:10px; letter-spacing:0.05em; text-transform:none; color:rgba(255,255,255,0.4); background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:underline; }
+    .sf-clear:hover { color:rgba(255,255,255,0.7); }
+    .sf-input { width:100%; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,0.25); color:var(--white); font-family:inherit; font-size:16px; padding:10px 2px; outline:none; }
+    .sf-input:focus { border-bottom-color:var(--pink); }
+    .sig-pad-wrap { margin-top:8px; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.25); }
+    .sig-pad-canvas { display:block; width:100%; height:120px; background:#ffffff; cursor:crosshair; touch-action:none; }
+    .sig-error { display:none; background:rgba(224,77,128,0.15); border:1px solid rgba(224,77,128,0.4); color:#ffb3c9; font-size:13px; padding:10px 14px; border-radius:8px; margin-top:16px; }
+    .sig-error.show { display:block; }
+    .btn-sign { display:block; width:100%; margin-top:28px; background:var(--pink); color:var(--white); border:none; padding:18px; border-radius:999px; font-family:inherit; font-size:14px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; transition:transform .15s ease; }
+    .btn-sign:hover { transform:translateY(-2px); }
+    .btn-sign:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+    .sign-fine { font-size:12px; color:rgba(255,255,255,0.4); margin-top:16px; text-align:center; line-height:1.6; }
+
+    /* signed / expired states inside the dark section */
+    .signed-state { text-align:center; padding:8px 0 4px; }
+    .signed-icon-box { width:56px; height:56px; border-radius:14px; background:var(--card-rose); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+    .signed-title { font-size:22px; font-weight:800; letter-spacing:-0.02em; margin-bottom:8px; color:var(--white); }
+    .signed-sub { font-size:14px; color:rgba(255,255,255,0.6); margin-bottom:20px; line-height:1.6; }
+    .signed-meta { background:rgba(255,255,255,0.06); border-radius:10px; padding:14px 18px; font-size:12px; color:rgba(255,255,255,0.6); text-align:left; }
+    .signed-meta strong { color:var(--white); }
+    .expired-state { text-align:center; padding:8px 0 4px; }
+    .expired-icon { font-size:32px; margin-bottom:12px; }
+    .expired-title { font-size:20px; font-weight:800; color:var(--white); margin-bottom:8px; }
+    .expired-sub { font-size:14px; color:rgba(255,255,255,0.6); line-height:1.6; }
+    .expired-sub a { color:var(--card-rose); }
+
+    /* ===== FOOTER ===== */
+    .foot { background:var(--white); border-top:1px solid var(--border); padding:24px 48px; display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+    .foot b { font-weight:700; } .foot .mid { color:var(--ink-mid); } .foot .handle { font-weight:500; }
+
+    @media (max-width: 860px) {
+      section { padding:64px 0; }
+      .hero-grid, .about-grid, .sign-grid, .pkg-card { grid-template-columns:1fr; }
+      .hero-photo { border-radius:0; min-height:320px; order:-1; }
+      .hero-copy { padding:48px 0 64px; }
+      .stats-row { grid-template-columns:repeat(2,1fr); gap:40px 20px; }
+      .pkg-price-box { text-align:left; margin-top:8px; }
+      .tl-row { grid-template-columns:1fr; gap:6px; }
+      .foot { flex-direction:column; gap:8px; padding:24px; }
     }
 
-    /* ── HERO ── */
-    .hero {
-      background: var(--dark);
-      position: relative;
-      overflow: hidden;
-      padding: 60px 24px 52px;
-      text-align: center;
-    }
-    .hero-bg {
-      position: absolute; inset: 0;
-      background: url('https://mallowfrenchie.com/images/mallow-hero.jpg') center/cover no-repeat;
-      opacity: 0.18;
-    }
-    .hero-content { position: relative; z-index: 1; }
-    .hero-logo {
-      height: 64px; width: auto; margin: 0 auto 20px;
-      filter: brightness(0) invert(1);
-    }
-    .hero-logo-text {
-      font-size: 28px; font-weight: 800; color: var(--white);
-      letter-spacing: -0.03em; margin-bottom: 8px;
-    }
-    .hero-tag {
-      font-size: 11px; font-weight: 600; letter-spacing: 0.18em;
-      text-transform: uppercase; color: var(--pink); margin-bottom: 28px;
-    }
-    .hero-divider { width: 40px; height: 2px; background: var(--pink); margin: 0 auto 24px; }
-    .hero-for {
-      font-size: 11px; font-weight: 600; letter-spacing: 0.14em;
-      text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 8px;
-    }
-    .hero-client {
-      font-size: 30px; font-weight: 800; color: var(--white);
-      letter-spacing: -0.03em; margin-bottom: 6px;
-    }
-    .hero-campaign {
-      font-size: 14px; color: rgba(255,255,255,0.55); margin-bottom: 24px;
-    }
-    .hero-meta { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-    .hero-meta-item {
-      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 999px; padding: 5px 14px;
-      font-size: 11px; color: rgba(255,255,255,0.5);
-    }
-    .hero-meta-item strong { color: var(--white); }
-
-    /* ── STATS BAR ── */
-    .stats-bar {
-      background: linear-gradient(90deg, var(--pink), #c83870);
-      padding: 20px 24px;
-    }
-    .stats-inner {
-      max-width: 720px; margin: 0 auto;
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 0; text-align: center;
-    }
-    .stat-item { border-right: 1px solid rgba(255,255,255,0.2); }
-    .stat-item:last-child { border-right: none; }
-    .stat-val { font-size: 22px; font-weight: 800; color: white; letter-spacing: -0.03em; }
-    .stat-lbl { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.75); letter-spacing: 0.08em; margin-top: 2px; text-transform: uppercase; }
-
-    /* ── FEATURED IN ── */
-    .featured-bar {
-      background: var(--white); border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
-    }
-    .featured-inner {
-      max-width: 720px; margin: 0 auto;
-      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-    }
-    .featured-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.2em;
-      text-transform: uppercase; color: var(--ink-mid); flex-shrink: 0;
-    }
-    .featured-divider { width: 1px; height: 16px; background: var(--border); }
-    .featured-name {
-      font-size: 13px; font-weight: 700; color: var(--ink-mid);
-      letter-spacing: -0.01em; opacity: 0.6;
-    }
-
-    /* ── CONTENT ── */
-    .content { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
-
-    /* section cards */
-    .section-card {
-      background: var(--white); border-radius: 0 0 16px 16px;
-      box-shadow: 0 1px 0 var(--border), 0 4px 20px rgba(0,0,0,0.05);
-      margin-bottom: 20px; overflow: hidden;
-    }
-    .card-bar { height: 3px; background: linear-gradient(90deg, var(--pink), var(--card-rose)); }
-    .card-body { padding: 24px 28px; }
-    .card-title {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
-      text-transform: uppercase; color: var(--pink); margin-bottom: 14px;
-    }
-
-    /* campaign note */
-    .campaign-note {
-      font-size: 15px; line-height: 1.7; color: var(--ink);
-      font-weight: 400;
-    }
-    .campaign-note strong { font-weight: 700; }
-
-    /* package */
-    .pkg-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
-    .pkg-title { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
-    .pkg-platform { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pink); background: #fdf0f4; padding: 4px 12px; border-radius: 999px; }
-    .deliverables-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-    .deliverable-item { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--ink); line-height: 1.5; }
-    .del-check { width: 18px; height: 18px; background: var(--pink); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; flex-shrink: 0; margin-top: 2px; }
-    .campaign-dates { display: flex; gap: 24px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-    .date-item { font-size: 12px; color: var(--ink-mid); }
-    .date-item strong { display: block; font-size: 13px; color: var(--ink); font-weight: 700; }
-
-    /* investment */
-    .investment-amount {
-      font-size: 44px; font-weight: 800; color: var(--ink);
-      letter-spacing: -0.04em; margin-bottom: 6px;
-    }
-    .investment-sub { font-size: 13px; color: var(--ink-mid); }
-
-    /* partners */
-    .industry-section { margin-bottom: 24px; }
-    .industry-section:last-child { margin-bottom: 0; }
-    .industry-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
-      text-transform: uppercase; color: var(--ink-mid);
-      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
-    }
-    .logo-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-    .logo-item {
-      background: var(--blush); border: 1px solid var(--border);
-      border-radius: 10px; padding: 12px 18px;
-      display: flex; align-items: center; justify-content: center;
-      min-width: 90px; min-height: 50px;
-    }
-    .logo-item img { max-height: 28px; max-width: 80px; object-fit: contain; filter: grayscale(1); opacity: 0.7; }
-    .logo-item .logo-name { font-size: 11px; font-weight: 700; color: var(--ink-mid); }
-
-    /* terms */
-    .terms-list { display: flex; flex-direction: column; gap: 8px; }
-    .term-item { font-size: 13px; color: var(--ink-mid); line-height: 1.55; padding-left: 14px; position: relative; }
-    .term-item::before { content: "·"; position: absolute; left: 0; color: var(--pink); font-weight: 900; }
-
-    /* expiry notice */
-    .expiry-notice {
-      background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px;
-      padding: 12px 16px; margin-bottom: 20px;
-      font-size: 13px; color: #92400e;
-    }
-
-    /* ── SIGNATURE ── */
-    .sig-card {
-      background: var(--white); border-radius: 0 0 20px 20px;
-      box-shadow: 0 1px 0 var(--border), 0 8px 40px rgba(0,0,0,0.08);
-      overflow: hidden; margin-bottom: 40px;
-    }
-    .sig-bar { height: 3px; background: linear-gradient(90deg, var(--pink), var(--card-rose)); }
-    .sig-body { padding: 32px 28px; }
-    .sig-title { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; margin-bottom: 6px; }
-    .sig-sub { font-size: 13px; color: var(--ink-mid); margin-bottom: 24px; line-height: 1.5; }
-    .sig-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-    .sig-label { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mid); }
-    .sig-input {
-      font-family: 'Satoshi', sans-serif; font-size: 15px; font-weight: 600;
-      color: var(--ink); background: var(--blush);
-      border: 1.5px solid var(--border); border-radius: 10px;
-      padding: 12px 16px; outline: none; width: 100%;
-      transition: border-color 0.15s;
-    }
-    .sig-input:focus { border-color: var(--pink); background: white; }
-    .sig-agree { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 22px; cursor: pointer; }
-    .sig-agree input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--pink); flex-shrink: 0; margin-top: 2px; cursor: pointer; }
-    .sig-agree-text { font-size: 13px; color: var(--ink-mid); line-height: 1.5; }
-    .sig-btn {
-      font-family: 'Satoshi', sans-serif; font-size: 13px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      background: var(--pink); color: white; border: none;
-      border-radius: 999px; padding: 14px 32px; cursor: pointer;
-      width: 100%; transition: background 0.15s;
-    }
-    .sig-btn:hover { background: #c83870; }
-    .sig-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .sig-error { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
-    .sig-error.show { display: block; }
-
-    /* signed state */
-    .signed-state { text-align: center; padding: 32px 28px; }
-    .signed-icon { font-size: 36px; margin-bottom: 12px; }
-    .signed-title { font-size: 20px; font-weight: 800; color: #166534; letter-spacing: -0.02em; margin-bottom: 6px; }
-    .signed-sub { font-size: 13px; color: var(--ink-mid); margin-bottom: 24px; line-height: 1.5; }
-    .signed-meta { background: var(--blush); border-radius: 10px; padding: 14px 18px; font-size: 12px; color: var(--ink-mid); margin-bottom: 20px; text-align: left; }
-    .signed-meta strong { color: var(--ink); }
-    .pdf-btn {
-      font-family: 'Satoshi', sans-serif; font-size: 12px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      background: var(--dark); color: white; border: none;
-      border-radius: 999px; padding: 12px 28px; cursor: pointer;
-      transition: background 0.15s;
-    }
-    .pdf-btn:hover { background: #333; }
-
-    /* expired state */
-    .expired-card { background: var(--white); border-radius: 16px; padding: 40px 28px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 40px; }
-    .expired-title { font-size: 20px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
-    .expired-sub { font-size: 14px; color: var(--ink-mid); }
-
-    /* ── FOOTER ── */
-    .footer { background: var(--dark); padding: 24px; text-align: center; }
-    .footer span { font-size: 11px; color: rgba(255,255,255,0.25); }
-
-    /* ── PRINT ── */
     @media print {
-      .sig-card, .sig-btn, .pdf-btn { display: none !important; }
-      .hero-bg { display: none; }
-      body { background: white; }
-      .section-card { box-shadow: none; border: 1px solid var(--border); }
+      .sign-form, .btn-sign, .hero-cta { display:none !important; }
     }
   </style>
 </head>
 <body>
 
-<!-- ── HERO ── -->
-<div class="hero">
-  <div class="hero-bg"></div>
-  <div class="hero-content">
-    <img class="hero-logo"
-      src="https://mallowfrenchie.com/images/MallowFrenchieLogoImage.png"
-      alt="MallowFrenchie"
-      onerror="this.style.display='none'">
-    <div class="hero-logo-text">MallowFrenchie</div>
-    <div class="hero-tag">South Florida's Most Influential French Bulldog 🐾</div>
-    <div class="hero-divider"></div>
-    <div class="hero-for">Partnership Proposal for</div>
-    <div class="hero-client"><?= he($p['client_name']) ?></div>
-    <?php if ($p['campaign_name']): ?>
-    <div class="hero-campaign"><?= he($p['campaign_name']) ?></div>
-    <?php endif; ?>
-    <div class="hero-meta">
-      <span class="hero-meta-item"><strong><?= he($p['proposal_num']) ?></strong></span>
-      <span class="hero-meta-item">Prepared <?= fmtD($p['issue_date']) ?></span>
-      <?php if ($p['expiry_date']): ?>
-      <span class="hero-meta-item">Expires <?= fmtD($p['expiry_date']) ?></span>
-      <?php endif; ?>
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <div class="eyebrow">Partnership proposal · <?= he($p['proposal_num']) ?></div>
+      <h1 class="hero-name">Mallow <em>×</em><br><?= he($hero_title) ?></h1>
+      <p class="hero-sub"><?= $hero_sub ?></p>
+      <a class="hero-cta" href="#sign">Review &amp; sign</a>
     </div>
+    <div class="hero-photo">
+      <img src="<?= he($IMG_HERO_PHOTO) ?>" alt="" onerror="this.style.display='none'">
+      <span>🐶</span>
+    </div>
+  </div>
+</header>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="wrap stats-row">
+    <div><div class="stat-num"><?= he($settings['stat_followers']) ?></div><div class="stat-label">Followers</div></div>
+    <div><div class="stat-num"><?= he($settings['stat_impressions']) ?></div><div class="stat-label">Impressions / month</div></div>
+    <div><div class="stat-num"><?= he($settings['stat_audience_age']) ?></div><div class="stat-label"><?= he($settings['stat_audience_age_label']) ?></div></div>
+    <div><div class="stat-num"><?= he($settings['stat_partnerships']) ?></div><div class="stat-label">Brand partnerships</div></div>
   </div>
 </div>
 
-<!-- ── STATS BAR ── -->
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="stat-item">
-      <div class="stat-val">67.8K</div>
-      <div class="stat-lbl">Followers</div>
+<!-- ABOUT -->
+<section>
+  <div class="wrap about-grid">
+    <div class="about-photo">
+      <img src="<?= he($IMG_ABOUT_PHOTO) ?>" alt="" onerror="this.style.display='none'">
+      <span>📸</span>
     </div>
-    <div class="stat-item">
-      <div class="stat-val">130K+</div>
-      <div class="stat-lbl">Monthly Impressions</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-val">63%</div>
-      <div class="stat-lbl">Female Audience</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-val">79%</div>
-      <div class="stat-lbl">Ages 25–44</div>
+    <div>
+      <div class="eyebrow">About me</div>
+      <h2 class="title">Miami's most <em>bookable</em> frenchie.</h2>
+      <p class="about-body"><?= nl2br(he($settings['about_blurb'])) ?></p>
+      <div class="press-strip"><span>Forbes</span><span>New Times</span><span>TimeOut</span><span>AdWeek</span></div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ── FEATURED IN ── -->
-<div class="featured-bar">
-  <div class="featured-inner">
-    <span class="featured-label">As seen in</span>
-    <div class="featured-divider"></div>
-    <span class="featured-name">Forbes</span>
-    <span class="featured-name">New Times</span>
-    <span class="featured-name">Time Out Miami</span>
-  </div>
-</div>
-
-<!-- ── CONTENT ── -->
-<div class="content">
-
-  <?php if ($p['expiry_date'] && $p['expiry_date'] <= date('Y-m-d') && $p['expiry_date'] !== date('Y-m-d')): ?>
-  <div class="expiry-notice">
-    ⏰ This proposal expired on <?= fmtD($p['expiry_date']) ?>. Please reach out to Gina to request an updated proposal.
-  </div>
-  <?php endif; ?>
-
-  <!-- Campaign Overview -->
-  <?php if ($p['notes']): ?>
-  <div class="section-card">
-    <div class="card-bar"></div>
-    <div class="card-body">
-      <div class="card-title">Campaign Overview</div>
-      <div class="campaign-note"><?= nl2br(he($p['notes'])) ?></div>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <!-- Package + Deliverables -->
-  <div class="section-card">
-    <div class="card-bar"></div>
-    <div class="card-body">
-      <div class="card-title">What's Included</div>
-      <div class="pkg-header">
-        <div class="pkg-title"><?= he($package_name ?? 'Custom Package') ?></div>
-        <?php if ($p['platform']): ?>
-        <span class="pkg-platform"><?= he($p['platform']) ?></span>
-        <?php endif; ?>
-      </div>
-      <?php if (!empty($deliverables)): ?>
-      <ul class="deliverables-list">
-        <?php foreach ($deliverables as $d): ?>
-        <li class="deliverable-item">
-          <span class="del-check">✓</span>
-          <span><?= he($d) ?></span>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-      <?php endif; ?>
-      <?php if ($p['campaign_start'] || $p['campaign_end']): ?>
-      <div class="campaign-dates">
-        <?php if ($p['campaign_start']): ?>
-        <div class="date-item">Campaign Start<strong><?= fmtD($p['campaign_start']) ?></strong></div>
-        <?php endif; ?>
-        <?php if ($p['campaign_end']): ?>
-        <div class="date-item">Campaign End<strong><?= fmtD($p['campaign_end']) ?></strong></div>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <!-- Investment -->
-  <div class="section-card">
-    <div class="card-bar"></div>
-    <div class="card-body">
-      <div class="card-title">Investment</div>
-      <div class="investment-amount"><?= fmtMoney($p['total']) ?></div>
-      <div class="investment-sub">Total partnership investment · 50% deposit due upon signing</div>
-    </div>
-  </div>
-
-  <!-- Previous Partnerships -->
-  <?php if (!empty($partners_by_industry)): ?>
-  <div class="section-card">
-    <div class="card-bar"></div>
-    <div class="card-body">
-      <div class="card-title">Previous Partnerships</div>
-      <?php foreach ($partners_by_industry as $industry => $logos): ?>
-      <div class="industry-section">
-        <div class="industry-label"><?= he($industry) ?></div>
-        <div class="logo-grid">
-          <?php foreach ($logos as $logo): ?>
-          <div class="logo-item">
-            <img src="<?= he($logo['logo_url']) ?>" alt="<?= he($logo['name']) ?>"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-            <span class="logo-name" style="display:none"><?= he($logo['name']) ?></span>
-          </div>
+<!-- DELIVERABLES -->
+<section class="deliver">
+  <div class="wrap">
+    <div class="eyebrow">The partnership</div>
+    <h2 class="title">What <strong>you</strong> get.</h2>
+    <div class="pkg-card">
+      <div>
+        <div class="pkg-name"><?= he($pkg_name) ?></div>
+        <?php if (!empty($deliverables)): ?>
+        <ul class="pkg-list">
+          <?php foreach ($deliverables as $d): ?>
+          <li><?= he($d) ?></li>
           <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+      </div>
+      <div class="pkg-price-box">
+        <div>
+          <div class="pkg-price-label">Investment</div>
+          <div class="pkg-price"><?= fmtMoney($p['total']) ?></div>
         </div>
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <!-- Terms -->
-  <div class="section-card">
-    <div class="card-bar"></div>
-    <div class="card-body">
-      <div class="card-title">Terms</div>
-      <div class="terms-list">
-        <div class="term-item">Content will be delivered within 7 business days of the campaign start date unless otherwise agreed upon.</div>
-        <div class="term-item">Client receives unlimited usage rights for all content created during this partnership.</div>
-        <div class="term-item">One round of revisions is included. Additional revisions billed at $150/hr.</div>
-        <div class="term-item">A 50% deposit is required to confirm the partnership. Remaining balance due upon content delivery.</div>
-        <div class="term-item">Payment accepted via bank transfer or credit card. Net 7 payment terms.</div>
-        <div class="term-item">Content approval window: client has 48 hours to review and approve. Silence = approval.</div>
-        <div class="term-item">MallowFrenchie retains the right to repost and archive all co-created content.</div>
+        <?php if ($p['expiry_date']): ?>
+        <div class="pkg-valid">Proposal valid through <?= fmtD($p['expiry_date']) ?></div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
+</section>
 
-  <!-- Signature Block -->
-  <?php if ($expired && !$sig): ?>
-  <div class="expired-card">
-    <div style="font-size:28px;margin-bottom:12px;">⏰</div>
-    <div class="expired-title">This proposal has expired</div>
-    <div class="expired-sub">Please contact Gina at <a href="mailto:mallowfrenchie@gmail.com" style="color:var(--pink);">mallowfrenchie@gmail.com</a> to request an updated proposal.</div>
+<!-- TIMELINE -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2 class="title">From <em>yes</em> to live.</h2>
+    <div class="tl-row"><div class="tl-phase">Sign &amp; kickoff</div><div class="tl-detail">Sign below, receive your countersigned PDF instantly, and we schedule the shoot.</div><div class="tl-when">Day 0</div></div>
+    <div class="tl-row"><div class="tl-phase">Content creation</div><div class="tl-detail">Shoot day at your property. Mallow brings the smile; we bring the crew.</div><div class="tl-when">Week 1–2</div></div>
+    <div class="tl-row"><div class="tl-phase">Review &amp; publish</div><div class="tl-detail">You approve drafts, we post on the agreed schedule, HD files delivered.</div><div class="tl-when">Week 2–3</div></div>
   </div>
+</section>
 
-  <?php elseif ($sig): ?>
-  <div class="sig-card">
-    <div class="sig-bar"></div>
-    <div class="signed-state">
-      <div class="signed-icon">✅</div>
-      <div class="signed-title">Proposal Accepted</div>
-      <div class="signed-sub">Thank you, <?= he($sig['signer_name']) ?>! We're excited to work together on this campaign.</div>
-      <div class="signed-meta">
-        Signed by <strong><?= he($sig['signer_name']) ?></strong>
-        on <strong><?= date('F j, Y \a\t g:i A', strtotime($sig['signed_at'])) ?></strong>
-      </div>
-      <button class="pdf-btn" onclick="window.print()">Download PDF</button>
+<!-- SIGNATURE -->
+<section class="sign" id="sign">
+  <div class="wrap sign-grid">
+    <div>
+      <div class="eyebrow">Make it official</div>
+      <h2 class="title">Let's <strong>work</strong> together.</h2>
+      <p class="sign-terms">By signing, you agree to the deliverables, investment, and timeline above. A <?= he($settings['deposit_percent']) ?>% deposit invoice is issued on signing; the balance is due on content delivery. You'll receive a signed PDF copy of this proposal by email the moment you sign.</p>
     </div>
-  </div>
 
-  <?php else: ?>
-  <div class="sig-card" id="sig-block">
-    <div class="sig-bar"></div>
-    <div class="sig-body">
-      <div class="sig-title">Accept this Proposal</div>
-      <div class="sig-sub">By signing below you confirm your acceptance of this proposal and agree to the terms outlined above.</div>
+    <?php if ($expired && !$sig): ?>
+    <div class="sign-form">
+      <div class="expired-state">
+        <div class="expired-icon">⏰</div>
+        <div class="expired-title">This proposal has expired</div>
+        <div class="expired-sub">Please contact us at <a href="mailto:<?= he($settings['contact_email']) ?>"><?= he($settings['contact_email']) ?></a> to request an updated proposal.</div>
+      </div>
+    </div>
+
+    <?php elseif ($sig): ?>
+    <div class="sign-form" id="sig-block">
+      <?= render_signed_state($sig['signer_name'], $sig['signed_at']) ?>
+    </div>
+
+    <?php else: ?>
+    <form class="sign-form" id="sig-block" onsubmit="return false;">
       <div class="sig-error" id="sig-error"></div>
-      <div class="sig-field">
-        <label class="sig-label">Your Full Name *</label>
-        <input class="sig-input" type="text" id="signer-name" placeholder="Jane Smith" autocomplete="name">
+      <label class="sf-label" for="signer-name">Full name</label>
+      <input class="sf-input" id="signer-name" type="text" placeholder="Your name" autocomplete="name">
+      <label class="sf-label" for="signer-email">Email</label>
+      <input class="sf-input" id="signer-email" type="email" placeholder="you@company.com" autocomplete="email" value="<?= he($p['client_email']) ?>">
+      <label class="sf-label">Signature <button type="button" class="sf-clear" onclick="clearSignature()">Clear</button></label>
+      <div class="sig-pad-wrap">
+        <canvas class="sig-pad-canvas" id="sig-canvas"></canvas>
       </div>
-      <label class="sig-agree">
-        <input type="checkbox" id="sig-agree-check">
-        <span class="sig-agree-text">I have read and agree to the terms of this proposal. I understand that a 50% deposit is required to confirm this partnership.</span>
-      </label>
-      <button class="sig-btn" id="sig-btn" onclick="signProposal()">Accept &amp; Sign</button>
-    </div>
+      <button class="btn-sign" id="sig-btn" type="button" onclick="signProposal()">Sign proposal</button>
+      <div class="sign-fine">Timestamped and legally binding · You'll get a PDF copy instantly</div>
+    </form>
+    <?php endif; ?>
+
   </div>
-  <?php endif; ?>
+</section>
 
-</div>
-
-<div class="footer">
-  <span>MallowFrenchie &middot; @mallowfrenchie</span>
-</div>
+<footer class="foot">
+  <span><b><?= he($settings['company_name']) ?></b></span>
+  <span class="mid">Proposal by <?= he($settings['company_name']) ?> · Design by MIUX Creative</span>
+  <span class="handle"><?= he($settings['instagram_handle']) ?></span>
+</footer>
 
 <script>
   const PROPOSAL_ID = <?= intval($id) ?>;
 
+  // ── Signature canvas ──
+  const canvas = document.getElementById('sig-canvas');
+  let ctx, hasInk = false, drawing = false, lastX = 0, lastY = 0;
+
+  function setupCanvas() {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#191919';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches && e.touches[0];
+    return { x: (t ? t.clientX : e.clientX) - rect.left, y: (t ? t.clientY : e.clientY) - rect.top };
+  }
+  function startDraw(e) {
+    e.preventDefault();
+    drawing = true;
+    const p = getPos(e);
+    lastX = p.x; lastY = p.y;
+  }
+  function draw(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+    hasInk = true;
+  }
+  function endDraw() { drawing = false; }
+
+  function clearSignature() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasInk = false;
+  }
+
+  if (canvas) {
+    setupCanvas();
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDraw);
+    window.addEventListener('resize', () => { setupCanvas(); hasInk = false; });
+  }
+
   async function signProposal() {
-    const name    = document.getElementById('signer-name').value.trim();
-    const agreed  = document.getElementById('sig-agree-check').checked;
-    const errEl   = document.getElementById('sig-error');
+    const name   = document.getElementById('signer-name').value.trim();
+    const email  = document.getElementById('signer-email').value.trim();
+    const errEl  = document.getElementById('sig-error');
 
     errEl.classList.remove('show');
 
@@ -551,8 +427,8 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
       errEl.classList.add('show');
       return;
     }
-    if (!agreed) {
-      errEl.textContent = 'Please check the agreement box to continue.';
+    if (!hasInk) {
+      errEl.textContent = 'Please draw your signature above.';
       errEl.classList.add('show');
       return;
     }
@@ -562,39 +438,41 @@ function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
     btn.textContent = 'Signing...';
 
     try {
-      const res  = await fetch('/taterdash-app/taterdash/sign-proposal.php', {
+      const res = await fetch('/taterdash-app/taterdash/sign-proposal.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposal_id: PROPOSAL_ID, signer_name: name })
+        body: JSON.stringify({
+          proposal_id: PROPOSAL_ID,
+          signer_name: name,
+          signer_email: email,
+          signature_image: canvas.toDataURL('image/png'),
+        })
       });
       const data = await res.json();
 
       if (data.success) {
-        // Replace signature block with signed state
         document.getElementById('sig-block').innerHTML = `
-          <div class="sig-bar"></div>
           <div class="signed-state">
-            <div class="signed-icon">✅</div>
-            <div class="signed-title">Proposal Accepted</div>
-            <div class="signed-sub">Thank you, ${escHtml(name)}! We're excited to work together on this campaign.</div>
+            <div class="signed-icon-box"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 13l4 4L19 7" stroke="#e04d80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="signed-title">Signed!</div>
+            <div class="signed-sub">A copy is on its way to your inbox. Thank you, ${escHtml(name)} — we're excited to work together.</div>
             <div class="signed-meta">
               Signed by <strong>${escHtml(name)}</strong>
               on <strong>${new Date(data.signed_at).toLocaleString('en-US', {month:'long',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</strong>
             </div>
-            <button class="pdf-btn" onclick="window.print()">Download PDF</button>
           </div>
         `;
       } else {
         errEl.textContent = data.error || 'An error occurred. Please try again.';
         errEl.classList.add('show');
         btn.disabled = false;
-        btn.textContent = 'Accept & Sign';
+        btn.textContent = 'Sign proposal';
       }
     } catch (e) {
       errEl.textContent = 'Connection error. Please try again.';
       errEl.classList.add('show');
       btn.disabled = false;
-      btn.textContent = 'Accept & Sign';
+      btn.textContent = 'Sign proposal';
     }
   }
 

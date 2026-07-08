@@ -43,8 +43,13 @@ function render_proposal_pdf(PDO $pdo, int $proposal_id): ?string {
         $sigBlock = '<p style="font-size:11px;color:#b0b0b0;">This proposal has not yet been signed.</p>';
         if ($signature) {
             $ip = $signature['ip_direct'] ?: $signature['ip_address'];
+            $signatureImageHtml = '';
+            if (!empty($signature['signature_image']) && str_starts_with($signature['signature_image'], 'data:image/png;base64,')) {
+                $signatureImageHtml = '<img src="' . $signature['signature_image'] . '" style="max-width:220px;max-height:70px;display:block;margin-bottom:8px;">';
+            }
             $sigBlock = '
             <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid #191919;padding-top:10px;margin-top:6px;">
+              ' . ($signatureImageHtml ? '<tr><td>' . $signatureImageHtml . '</td></tr>' : '') . '
               <tr><td style="font-size:10px;color:#6b6b6b;padding:2px 0;"><strong style="color:#191919;">Signed by:</strong> ' . $he($signature['signer_name']) . '</td></tr>
               <tr><td style="font-size:10px;color:#6b6b6b;padding:2px 0;"><strong style="color:#191919;">Email:</strong> ' . $he($signature['signer_email']) . '</td></tr>
               <tr><td style="font-size:10px;color:#6b6b6b;padding:2px 0;"><strong style="color:#191919;">Signed on:</strong> ' . date('F j, Y \a\t g:i A', strtotime($signature['signed_at'])) . '</td></tr>

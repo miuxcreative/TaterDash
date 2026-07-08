@@ -40,13 +40,21 @@ $items = $stmt->fetchAll();
 // ── Mark as viewed ──
 if ($invoice['status'] === 'sent') {
     $pdo->prepare("UPDATE td_invoices SET status = 'viewed' WHERE id = ?")->execute([$id]);
+    $invoice['status'] = 'viewed';
 }
 
 $settings = get_settings($pdo);
 
-// ── Format helpers ──
-function fmt_money($n) { return '$' . number_format(floatval($n), 2); }
-function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
+// ── Image slots — swap these once real photos/marks are supplied ──
+$IMG_BRAND_MARK = 'https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png';
+
+function he($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
+function fmt_money_cents($n) { return '$' . number_format(floatval($n), 2); }
+function fmt_money_whole($n) { return number_format(floatval($n), 0); }
+function fmt_date($d)  { return $d ? date('F j, Y', strtotime($d)) : '—'; }
+
+$is_paid = $invoice['status'] === 'paid';
+$pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,237 +63,215 @@ function fmt_date($d)  { return date('F j, Y', strtotime($d)); }
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
   <link rel="apple-touch-icon" href="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png">
-  <title>Invoice <?= htmlspecialchars($invoice['invoice_num']) ?> — Mallow Frenchie</title>
+  <title>Invoice <?= he($invoice['invoice_num']) ?> · Mallow Frenchie</title>
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@200,300,400,500,600,700,800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --ink:       #191919;
-      --ink-mid:   #6b6b6b;
-      --ink-light: #b0b0b0;
-      --white:     #ffffff;
-      --blush:     #faf0f0;
-      --blush-dark:#f5e5e5;
-      --pink:      #e04d80;
-      --card-rose: #f2d0dc;
-      --dark:      #111111;
-      --border:    #e8e8e8;
+      --ink:#191919; --ink-mid:#6b6b6b; --ink-light:#b0b0b0;
+      --white:#ffffff; --blush:#faf0f0; --blush-dark:#f5e5e5;
+      --pink:#e04d80; --card-rose:#f2d0dc; --card-sand:#e6d5b8;
+      --card-sky:#c4dde8; --dark:#111111; --border:rgba(0,0,0,0.08);
     }
-    html { font-size: 16px; }
-    body {
-      font-family: 'Satoshi', sans-serif;
-      background: #e4e4e4;
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
-      padding: 48px 20px;
-    }
-    .page {
-      max-width: 740px;
-      margin: 0 auto;
-      background: var(--white);
-      box-shadow: 0 8px 64px rgba(0,0,0,0.10);
-    }
-    .top-band { height: 4px; background: var(--card-rose); }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Satoshi',sans-serif; background:var(--blush); color:var(--ink); -webkit-font-smoothing:antialiased; }
 
-    /* HEADER */
-    .hdr {
-      padding: 44px 56px 32px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 1px solid var(--border);
-    }
-    .hdr-logo img { height: 80px; width: auto; display: block; }
-    .hdr-logo-fallback { display: none; font-size: 17px; font-weight: 700; color: var(--ink); }
-    .hdr-logo-fallback span { color: var(--pink); }
-    .hdr-right { text-align: right; }
-    .hdr-word { font-size: 48px; font-weight: 200; letter-spacing: -0.03em; color: var(--ink); line-height: 1.0; margin-bottom: 10px; }
-    .hdr-dateline { font-size: 12.5px; color: var(--ink-mid); line-height: 1.75; }
-    .hdr-dateline b { font-weight: 600; color: var(--ink); }
-    .hdr-invnum { margin-top: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pink); }
+    .layout { display:grid; grid-template-columns: 1fr 420px; min-height:100vh; }
 
-    /* PARTIES */
-    .parties {
-      padding: 28px 56px 32px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      border-bottom: 1px solid var(--border);
-    }
-    .pty-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pink); margin-bottom: 8px; }
-    .pty-name { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-    .pty-detail { font-size: 12.5px; color: var(--ink-mid); line-height: 1.7; }
+    /* ============ LEFT — THE INVOICE ============ */
+    .doc-pane { padding:48px 56px; display:flex; justify-content:center; align-items:flex-start; }
+    .doc { background:var(--white); border-radius:24px; max-width:720px; width:100%; overflow:hidden; box-shadow:0 24px 80px rgba(224,77,128,0.10); }
 
-    /* TABLE */
-    .items { padding: 28px 56px 0; }
-    .items-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-    .items-table { width: 100%; border-collapse: collapse; }
-    .items-table thead th {
-      background: var(--card-rose);
-      font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--ink); padding: 12px 16px; text-align: left;
-      border-right: 1px solid rgba(224,77,128,0.2);
-      border-bottom: 1px solid rgba(224,77,128,0.2);
-    }
-    .items-table thead th:last-child { border-right: none; }
-    .items-table thead th.r { text-align: right; }
-    .items-table thead th.col-qty { width: 52px; }
-    .items-table thead th.col-price { width: 100px; }
-    .items-table thead th.col-total { width: 100px; }
-    .items-table tbody td {
-      padding: 15px 16px; font-size: 13.5px; color: var(--ink);
-      vertical-align: top; background: var(--white);
-      border-bottom: 1px solid var(--border);
-      border-right: 1px solid var(--border);
-    }
-    .items-table tbody td:last-child { border-right: none; }
-    .items-table tbody tr:last-child td { border-bottom: none; }
-    .items-table tbody td.r { text-align: right; font-weight: 600; }
-    .items-table tbody td.col-qty { color: var(--ink-mid); text-align: center; }
-    .line-desc { font-weight: 600; }
-    .line-note { font-size: 11.5px; color: var(--ink-mid); margin-top: 3px; line-height: 1.5; }
+    .doc-head { padding:44px 52px 36px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--blush-dark); }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand-mark { width:52px; height:52px; border-radius:50%; background:var(--card-rose); display:grid; place-items:center; overflow:hidden; flex-shrink:0; }
+    .brand-mark img { width:100%; height:100%; object-fit:cover; }
+    .brand-name { font-weight:700; font-size:17px; letter-spacing:-0.01em; }
+    .brand-sub { font-size:12px; color:var(--ink-mid); font-weight:500; }
+    .doc-meta { text-align:right; }
+    .doc-type { font-style:italic; font-weight:800; font-size:26px; letter-spacing:-0.02em; }
+    .doc-num { font-size:12px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--pink); margin-top:4px; }
+    .doc-dates { font-size:12px; color:var(--ink-mid); margin-top:8px; line-height:1.6; }
 
-    /* TOTAL */
-    .total-row { padding: 16px 56px 0; display: flex; justify-content: flex-end; }
-    .total-box { display: flex; align-items: center; gap: 48px; border-top: 2px solid var(--ink); padding-top: 12px; min-width: 220px; }
-    .total-label { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-mid); }
-    .total-amount { font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+    .doc-parties { display:grid; grid-template-columns:1fr 1fr; gap:24px; padding:32px 52px; background:var(--blush); }
+    .party-label { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--pink); margin-bottom:8px; }
+    .party-name { font-weight:700; font-size:15px; }
+    .party-detail { font-size:13px; color:var(--ink-mid); line-height:1.6; margin-top:2px; }
 
-    /* PAYMENT */
-    .payment { padding: 32px 56px 36px; display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; border-top: 1px solid var(--border); margin-top: 28px; }
-    .pay-eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pink); margin-bottom: 12px; }
-    .pay-methods { display: flex; flex-direction: column; gap: 5px; }
-    .pay-row { font-size: 12.5px; color: var(--ink-mid); line-height: 1.5; }
-    .pay-row b { font-weight: 600; color: var(--ink); margin-right: 5px; }
-    .pay-note { font-size: 11px; color: var(--ink-light); margin-top: 10px; line-height: 1.6; }
-    .pay-btn {
-      display: inline-block; background: var(--card-rose); color: var(--ink);
-      padding: 13px 32px; border-radius: 999px; font-size: 12px; font-weight: 700;
-      letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none;
-      white-space: nowrap; flex-shrink: 0;
+    .doc-body { padding:36px 52px 44px; }
+    .line-table { width:100%; border-collapse:collapse; }
+    .line-table th { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink-light); text-align:left; padding-bottom:14px; border-bottom:1px solid var(--blush-dark); }
+    .line-table th:last-child { text-align:right; }
+    .line-table td { padding:18px 0; border-bottom:1px solid var(--blush-dark); font-size:14px; vertical-align:top; }
+    .line-table td:last-child { text-align:right; font-weight:700; white-space:nowrap; }
+    .li-name { font-weight:700; }
+    .li-desc { font-size:13px; color:var(--ink-mid); margin-top:4px; line-height:1.55; }
+
+    .totals { margin-top:28px; display:flex; justify-content:flex-end; }
+    .totals-box { width:280px; }
+    .tot-row { display:flex; justify-content:space-between; font-size:13px; color:var(--ink-mid); padding:6px 0; }
+    .tot-due { display:flex; justify-content:space-between; align-items:baseline; margin-top:12px; padding-top:16px; border-top:2px solid var(--ink); }
+    .tot-due-label { font-style:italic; font-weight:800; font-size:16px; }
+    .tot-due-amt { font-weight:800; font-size:28px; letter-spacing:-0.02em; }
+
+    .doc-notes { padding:0 52px 8px; font-size:13px; color:var(--ink-mid); line-height:1.6; }
+    .doc-notes b { color:var(--ink); }
+
+    .doc-foot { padding:24px 52px; border-top:1px solid var(--blush-dark); display:flex; justify-content:space-between; font-size:12px; color:var(--ink-mid); }
+    .doc-foot b { color:var(--ink); font-weight:700; }
+
+    /* ============ RIGHT — PAYMENT PANEL ============ */
+    .pay-pane { background:var(--dark); color:var(--white); padding:56px 44px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; }
+    .pay-eyebrow { font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--pink); }
+    .pay-title { font-size:clamp(28px,3vw,36px); font-weight:300; letter-spacing:-0.02em; line-height:1.1; margin-top:14px; }
+    .pay-title strong { font-weight:700; }
+    .pay-amount { margin-top:36px; }
+    .pay-amount-label { font-size:12px; color:rgba(255,255,255,0.5); font-weight:500; letter-spacing:0.12em; text-transform:uppercase; }
+    .pay-amount-num { font-size:56px; font-weight:200; letter-spacing:-0.03em; margin-top:6px; }
+    .pay-amount-num sup { font-size:22px; font-weight:400; vertical-align:38px; margin-right:2px; }
+
+    .pay-status { display:inline-flex; align-items:center; gap:8px; margin-top:20px; font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--card-sand); }
+    .pay-status::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--card-sand); }
+
+    .pay-cta { margin-top:auto; }
+    .btn-pay { display:block; width:100%; text-align:center; background:var(--pink); color:var(--white); border:none; padding:20px 48px; border-radius:999px; font-family:inherit; font-size:14px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; text-decoration:none; transition:transform .15s ease, box-shadow .15s ease; }
+    .btn-pay:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(224,77,128,0.4); }
+    .pay-secure { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:16px; font-size:12px; color:rgba(255,255,255,0.45); }
+    .pay-note { margin-top:28px; padding-top:24px; border-top:1px solid rgba(255,255,255,0.1); font-size:13px; line-height:1.7; color:rgba(255,255,255,0.6); }
+    .pay-note b { color:var(--white); }
+    .pay-contact { margin-top:20px; font-size:12px; color:rgba(255,255,255,0.45); }
+    .pay-contact a { color:var(--card-rose); text-decoration:none; }
+
+    /* Paid state */
+    .is-paid .btn-pay { background:var(--card-sand); color:var(--ink); pointer-events:none; }
+    .is-paid .pay-status { color:#8fd6a4; } .is-paid .pay-status::before { background:#8fd6a4; }
+
+    .doc-pane, .doc { min-width: 0; }
+    .doc-body { overflow-x: auto; }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns:1fr; }
+      .pay-pane { position:static; height:auto; padding:44px 32px; }
+      .pay-cta { margin-top:36px; }
+      .doc-pane { padding:24px 16px; }
+      .doc-head, .doc-parties, .doc-body, .doc-notes, .doc-foot { padding-left:28px; padding-right:28px; }
     }
-    .pay-btn.disabled { opacity: 0.4; pointer-events: none; }
 
-    /* FOOTER */
-    .ftr { background: var(--dark); padding: 16px 56px; display: flex; justify-content: space-between; align-items: center; }
-    .ftr-wordmark { font-size: 13px; font-weight: 700; color: var(--white); letter-spacing: -0.01em; }
-    .ftr-mid { font-size: 11px; color: rgba(255,255,255,0.35); text-align: center; }
-    .ftr-handle { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.45); }
+    @media (max-width: 480px) {
+      .doc-head { flex-wrap: wrap; gap: 16px; }
+      .doc-meta { text-align: left; }
+      .doc-parties { grid-template-columns: 1fr; }
+      .line-table { min-width: 420px; }
+    }
 
     @media print {
-      body { background: white; padding: 0; }
-      .page { box-shadow: none; }
-      .pay-btn { display: none; }
-      @page { margin: 0; size: letter; }
+      body { background: white; }
+      .pay-pane { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      .doc-pane { padding: 0; }
+      .doc { box-shadow: none; max-width: 100%; }
     }
   </style>
 </head>
-<body>
-<div class="page">
-  <div class="top-band"></div>
+<body class="<?= $is_paid ? 'is-paid' : '' ?>">
+<div class="layout">
 
-  <div class="hdr">
-    <div class="hdr-logo">
-      <img src="https://miuxcreative.github.io/mallowfrenchie/images/MallowFrenchieLogoImage.png"
-           alt="Mallow Frenchie"
-           onerror="this.style.display='none';document.querySelector('.hdr-logo-fallback').style.display='block'">
-      <div class="hdr-logo-fallback">Mallow<span>Frenchie</span></div>
-    </div>
-    <div class="hdr-right">
-      <div class="hdr-word">invoice</div>
-      <div class="hdr-dateline">
-        <b>Date:</b> <?= fmt_date($invoice['issue_date']) ?>
-        &nbsp;|&nbsp;
-        <b>Due</b> upon receipt
-      </div>
-      <div class="hdr-invnum"><?= htmlspecialchars($invoice['invoice_num']) ?></div>
-    </div>
-  </div>
+  <!-- LEFT: the invoice document -->
+  <main class="doc-pane">
+    <article class="doc">
+      <header class="doc-head">
+        <div class="brand">
+          <div class="brand-mark"><img src="<?= he($IMG_BRAND_MARK) ?>" alt="" onerror="this.style.display='none'"></div>
+          <div>
+            <div class="brand-name"><?= he($settings['company_name']) ?></div>
+            <div class="brand-sub"><?= he($settings['instagram_handle']) ?></div>
+          </div>
+        </div>
+        <div class="doc-meta">
+          <div class="doc-type">invoice</div>
+          <div class="doc-num"><?= he($invoice['invoice_num']) ?></div>
+          <div class="doc-dates">Issued <?= fmt_date($invoice['issue_date']) ?><br>Due <?= fmt_date($invoice['due_date']) ?></div>
+        </div>
+      </header>
 
-  <div class="parties">
-    <div>
-      <div class="pty-eyebrow">From</div>
-      <div class="pty-name"><?= htmlspecialchars($settings['company_name']) ?></div>
-      <div class="pty-detail">
-        <?= htmlspecialchars($settings['company_email']) ?><br>
-        <?= nl2br(htmlspecialchars($settings['company_address'])) ?>
-      </div>
-    </div>
-    <div style="text-align:right;">
-      <div class="pty-eyebrow">Bill To</div>
-      <div class="pty-name"><?= htmlspecialchars($invoice['client_name']) ?></div>
-      <div class="pty-detail"><?= htmlspecialchars($invoice['client_email']) ?></div>
-    </div>
-  </div>
+      <section class="doc-parties">
+        <div>
+          <div class="party-label">Billed to</div>
+          <div class="party-name"><?= he($invoice['client_name']) ?></div>
+          <div class="party-detail"><?= he($invoice['client_email']) ?></div>
+        </div>
+        <div>
+          <div class="party-label">From</div>
+          <div class="party-name"><?= he($settings['company_name']) ?></div>
+          <div class="party-detail">
+            <?= he($settings['company_email']) ?><br>
+            <?= he($settings['instagram_handle']) ?><?= $settings['stat_followers'] ? ' · ' . he($settings['stat_followers']) : '' ?>
+          </div>
+        </div>
+      </section>
 
-  <div class="items">
-    <div class="items-wrap">
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th class="col-qty">Qty</th>
-            <th>Description</th>
-            <th class="col-price r">Price</th>
-            <th class="col-total r">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($items as $item): ?>
-          <tr>
-            <td class="col-qty"><?= intval($item['quantity']) ?></td>
-            <td>
-              <div class="line-desc"><?= htmlspecialchars($item['description']) ?></div>
-              <?php if ($item['note']): ?>
-              <div class="line-note"><?= htmlspecialchars($item['note']) ?></div>
-              <?php endif; ?>
-            </td>
-            <td class="r"><?= fmt_money($item['unit_price']) ?></td>
-            <td class="r"><?= fmt_money($item['total']) ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
+      <section class="doc-body">
+        <table class="line-table">
+          <thead><tr><th>Deliverable</th><th>Qty</th><th>Amount</th></tr></thead>
+          <tbody>
+            <?php foreach ($items as $item): ?>
+            <tr>
+              <td>
+                <div class="li-name"><?= he($item['description']) ?></div>
+                <?php if ($item['note']): ?>
+                <div class="li-desc"><?= he($item['note']) ?></div>
+                <?php endif; ?>
+              </td>
+              <td><?= intval($item['quantity']) ?></td>
+              <td><?= fmt_money_cents($item['total']) ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+        <div class="totals">
+          <div class="totals-box">
+            <div class="tot-row"><span>Subtotal</span><span><?= fmt_money_cents($invoice['subtotal']) ?></span></div>
+            <div class="tot-row"><span>Discount</span><span>—</span></div>
+            <div class="tot-due"><span class="tot-due-label">total due</span><span class="tot-due-amt"><?= fmt_money_cents($invoice['total']) ?></span></div>
+          </div>
+        </div>
+      </section>
 
-  <div class="total-row">
-    <div class="total-box">
-      <div class="total-label">Total</div>
-      <div class="total-amount"><?= fmt_money($invoice['total']) ?></div>
-    </div>
-  </div>
-
-  <?php if ($invoice['notes']): ?>
-  <div style="padding: 20px 56px 0;">
-    <div class="pty-eyebrow" style="margin-bottom:6px;">Notes</div>
-    <div style="font-size:13px; color:var(--ink-mid); line-height:1.65;"><?= nl2br(htmlspecialchars($invoice['notes'])) ?></div>
-  </div>
-  <?php endif; ?>
-
-  <div class="payment">
-    <div>
-      <div class="pay-eyebrow">Payment</div>
-      <div class="pay-methods">
-        <div class="pay-row"><b>PayPal</b> mallowfrenchie@gmail.com</div>
-        <div class="pay-row"><b>Zelle</b> 305-333-7905</div>
-        <div class="pay-row"><b>Check</b> payable to <?= htmlspecialchars($settings['company_name']) ?><?= $settings['company_address'] ? ' · ' . htmlspecialchars($settings['company_address']) : '' ?></div>
-      </div>
-      <?php if (!STRIPE_PAYMENT_URL): ?>
-      <div class="pay-note">Online payment via card coming soon.</div>
+      <?php if ($invoice['notes']): ?>
+      <div class="doc-notes"><b>Notes</b><br><?= nl2br(he($invoice['notes'])) ?></div>
       <?php endif; ?>
-    </div>
-    <?php if (STRIPE_PAYMENT_URL): ?>
-    <a href="<?= htmlspecialchars(STRIPE_PAYMENT_URL) ?>" class="pay-btn" target="_blank">Pay Now ↗</a>
-    <?php else: ?>
-    <span class="pay-btn disabled">Pay Now ↗</span>
-    <?php endif; ?>
-  </div>
 
-  <div class="ftr">
-    <div class="ftr-wordmark">MallowFrenchie</div>
-    <div class="ftr-mid"><?= htmlspecialchars($settings['company_name']) ?> &middot; <?= htmlspecialchars($settings['company_email']) ?></div>
-    <div class="ftr-handle">@mallowfrenchie</div>
-  </div>
+      <footer class="doc-foot">
+        <span><b><?= he($settings['company_name']) ?></b> · Thank you for working with us! 🐾</span>
+        <span><?= he($settings['instagram_handle']) ?></span>
+      </footer>
+    </article>
+  </main>
+
+  <!-- RIGHT: payment panel -->
+  <aside class="pay-pane">
+    <div>
+      <div class="pay-eyebrow">Secure payment</div>
+      <h1 class="pay-title">Ready when <strong>you</strong> are.</h1>
+      <div class="pay-amount">
+        <div class="pay-amount-label">Amount due</div>
+        <div class="pay-amount-num"><sup>$</sup><?= fmt_money_whole($invoice['total']) ?></div>
+      </div>
+      <div class="pay-status"><?= he($pay_status_label) ?></div>
+    </div>
+    <div class="pay-cta">
+      <?php if ($is_paid): ?>
+      <span class="btn-pay">Paid ✓</span>
+      <?php elseif (STRIPE_PAYMENT_URL): ?>
+      <a href="<?= he(STRIPE_PAYMENT_URL) ?>" class="btn-pay" target="_blank">Pay with card</a>
+      <?php else: ?>
+      <span class="btn-pay" style="opacity:.4;pointer-events:none;">Pay with card</span>
+      <?php endif; ?>
+      <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
+      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates instantly and you'll receive a receipt by email.</div>
+      <div class="pay-contact">Questions? <a href="mailto:<?= he($settings['contact_email']) ?>"><?= he($settings['contact_email']) ?></a></div>
+    </div>
+  </aside>
+
 </div>
 </body>
 </html>
