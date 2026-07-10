@@ -88,14 +88,17 @@ function row_actions(array $row): string {
     $id    = (int)$row['id'];
     $token = $row['token'];
     $st    = $row['status'];
-    $email = htmlspecialchars($row['client_email'] ?? '', ENT_QUOTES);
+    // JSON_HEX_* neutralizes quotes/angle-brackets/ampersands inside the string so it's
+    // safe as a JS literal; htmlspecialchars then covers the JSON delimiter quotes
+    // themselves so it's also safe embedded in an HTML onclick="..." attribute.
+    $emailJs = htmlspecialchars(json_encode($row['client_email'] ?? '', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG), ENT_QUOTES);
     $dd    = '';
 
     if ($type === 'invoice') {
         $open = '/invoice/?t='.$token;
         $edit = '/taterdash-app/admin/edit-invoice.php?id='.$id;
         $copy = htmlspecialchars(SITE_URL.'/invoice/?t='.$token, ENT_QUOTES);
-        $send = '<button class="dd-item" onclick="openSendModal(\'invoice\','.$id.',\''.$email.'\')">Send to client</button>';
+        $send = '<button class="dd-item" onclick="openSendModal(\'invoice\','.$id.','.$emailJs.')">Send to client</button>';
         $copyBtn = '<button class="dd-item" onclick="copyLinkOnly(\''.$copy.'\')">Copy link</button>';
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';
@@ -115,7 +118,7 @@ function row_actions(array $row): string {
         $open = '/proposal/?t='.$token;
         $edit = '/taterdash-app/admin/edit-proposal.php?id='.$id;
         $copy = htmlspecialchars(SITE_URL.'/proposal/?t='.$token, ENT_QUOTES);
-        $send = '<button class="dd-item" onclick="openSendModal(\'proposal\','.$id.',\''.$email.'\')">Send to client</button>';
+        $send = '<button class="dd-item" onclick="openSendModal(\'proposal\','.$id.','.$emailJs.')">Send to client</button>';
         $copyBtn = '<button class="dd-item" onclick="copyLinkOnly(\''.$copy.'\')">Copy link</button>';
         if ($st === 'draft') {
             $dd .= '<a class="dd-item" href="'.$edit.'">Edit</a>';

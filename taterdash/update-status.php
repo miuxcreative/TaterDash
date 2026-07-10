@@ -67,7 +67,14 @@ try {
             $pdo->prepare("DELETE FROM td_invoices WHERE id = ?")->execute([$id]);
             echo json_encode(['success' => true, 'invoice_id' => $id, 'deleted' => true]);
         } else {
-            $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ?")->execute([$status, $id]);
+            // Guard: only advance — never demote status
+            $guard = $status === 'sent' ? "AND status = 'draft'" : ($status === 'viewed' ? "AND status = 'sent'" : "AND status IN ('sent','viewed')");
+            $stmt = $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ? $guard");
+            $stmt->execute([$status, $id]);
+            if ($stmt->rowCount() === 0) {
+                http_response_code(409);
+                die(json_encode(['success' => false, 'error' => 'Status not changed (already past this state)']));
+            }
             log_event($pdo, $status, 'invoice', $id, $invoice['invoice_num'], $invoice['client_name'], $invoice['total']);
             echo json_encode(['success' => true, 'invoice_id' => $id, 'status' => $status]);
         }

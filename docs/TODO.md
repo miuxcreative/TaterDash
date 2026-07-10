@@ -18,6 +18,14 @@ what's already shipped in detail.
       this round (`send_email`, `get_settings`, `get_setting`) — confirm all three exist
       live, not just the ones added first.
 - [ ] **Activate Stripe** — see Build queue below, this is the last major placeholder.
+- [x] **Self-directed code review of the 2026-07-07/08 build** — 8-angle review against
+      everything from that round, fixed 5 confirmed bugs: stored XSS on the public
+      proposal page (`notes` field wasn't escaped), a missing status guard on invoices
+      (proposals got one, invoices didn't — could silently demote `paid` back to `sent`),
+      a double-sign race condition, a JS-injection vector via unvalidated `client_email`
+      in the dashboard, and misleading "Pay with card" copy that claimed Stripe checkout
+      would happen when it isn't activated yet. Two more findings flagged below rather
+      than fixed unilaterally.
 
 ## 🟠 End-to-end testing — needed before this goes near a real client
 
@@ -95,25 +103,37 @@ handoff. Test on the live site, not localhost.
 - [ ] **`?id=` fallback removal** — `invoice/index.php` and `proposal/index.php` still
       accept the old id-based links alongside the new token links (marked `TODO: remove
       after launch` in both files). Remove once confident no old links are still in use.
+      Worth noting: until removed, this fully bypasses the token security model for any
+      `?id=N` guess, not just genuinely old links — confirmed in the 2026-07-08 code
+      review.
+- [ ] **Confirm the Terms/campaign-dates drop on the client-facing proposal was
+      intentional** — the redesign's mockup didn't include the old Terms bullet list
+      (7-day delivery window, revision billing, deposit/Net-7 terms, repost rights, etc.)
+      or the campaign start/end dates the client used to see before signing. Neither
+      appears anywhere now — not the signing page, not the emailed/archived PDF. This was
+      a faithful port of the approved mockup, not a coding mistake, but it's a real
+      content/legal loss worth a deliberate yes/no rather than staying silently dropped.
 - [ ] **`get_setting()` singular helper is unused** — added alongside `get_settings()`
       for convenience but no call site actually uses it yet. Harmless, but worth using
       or removing next time settings code is touched.
 
 ## 🔵 Backlog
 
-- [ ] **G Space Agency branding option** — a way to send an invoice/proposal under
-      "G Space Agency LLC" instead of "Mallow Frenchie" (company name/email/address are
-      already settings-driven per-field, not per-document, so this needs its own design:
-      maybe a brand toggle at send time, or picked at login). Simpler than the
-      multi-tenant item below — this is "one admin, choose which identity to stamp on
-      *this* document," not separate isolated accounts. Needs a real conversation before
-      building — where does the choice live, does it affect the PDF/email too, etc.
+Sequenced — do these in order, each is a separate project:
+
+1. [ ] **White-label / multi-tenant exploration (TaterDash part)** — every table needs
+       a `tenant_id`, auth becomes multi-tenant, branding becomes per-tenant config.
+       Needs its own planning pass once the single-tenant product is stable. This is the
+       foundational piece; the G Space item below builds on it rather than shipping
+       standalone.
+2. [ ] **G Space Agency branding option** — a way to send an invoice/proposal under
+       "G Space Agency LLC" instead of "Mallow Frenchie." Deliberately sequenced *after*
+       the white-label work above, not before — treat it as an application of that
+       tenant/branding model rather than a quick standalone toggle. Needs a real
+       conversation before building either piece: where the choice lives, whether it
+       affects the PDF/email too, etc.
 - [ ] **Full QA pass before handoff** — broad manual testing of the whole app once the
       build queue is done.
 - [ ] **Full audit** — security (session/auth, input handling), data integrity
       (orphaned records, ENUM mismatches), UX edge cases. Do this after the build queue,
       not before.
-- [ ] **White-label / multi-tenant exploration** — distinct from the G Space branding
-      item above. This is the "actually run this for other clients" version: every table
-      needs a `tenant_id`, auth becomes multi-tenant, branding becomes per-tenant config.
-      Needs its own planning pass once the single-tenant product is stable.

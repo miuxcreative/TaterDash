@@ -261,13 +261,16 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
     <div class="pay-cta">
       <?php if ($is_paid): ?>
       <span class="btn-pay">Paid ✓</span>
-      <?php elseif (STRIPE_PAYMENT_URL): ?>
-      <a href="<?= he(STRIPE_PAYMENT_URL) ?>" class="btn-pay" target="_blank">Pay with card</a>
-      <?php else: ?>
-      <span class="btn-pay" style="opacity:.4;pointer-events:none;">Pay with card</span>
-      <?php endif; ?>
       <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
       <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates instantly and you'll receive a receipt by email.</div>
+      <?php elseif (STRIPE_PAYMENT_URL): ?>
+      <a href="<?= he(STRIPE_PAYMENT_URL) ?>" class="btn-pay" target="_blank">Pay with card</a>
+      <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
+      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates instantly and you'll receive a receipt by email.</div>
+      <?php else: ?>
+      <span class="btn-pay" style="opacity:.4;pointer-events:none;">Pay with card</span>
+      <div class="pay-note"><b>Card payment isn't set up yet.</b> Reach out below and we'll send you payment instructions directly.</div>
+      <?php endif; ?>
       <div class="pay-contact">Questions? <a href="mailto:<?= he($settings['contact_email']) ?>"><?= he($settings['contact_email']) ?></a></div>
     </div>
   </aside>

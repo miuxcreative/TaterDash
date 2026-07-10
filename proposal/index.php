@@ -80,7 +80,7 @@ function fmtD($d) {
 function fmtMoney($n) { return '$' . number_format(floatval($n), 0); }
 
 $hero_title = $p['campaign_name'] ?: $p['client_name'];
-$hero_sub   = $p['notes'] ?: ('A 3× Forbes-featured French Bulldog with ' . he($settings['stat_followers']) . ' devoted followers. Here\'s what we\'ll make together.');
+$hero_sub   = $p['notes'] ? he($p['notes']) : ('A 3× Forbes-featured French Bulldog with ' . he($settings['stat_followers']) . ' devoted followers. Here\'s what we\'ll make together.');
 $pkg_name   = $p['campaign_name'] ?: ($package_name ?? 'Custom Package');
 
 // ── Signed-state / confirmation markup, shared between the fresh-sign JS swap and a returning-visitor page load ──

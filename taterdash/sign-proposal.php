@@ -47,6 +47,16 @@ try {
         exit;
     }
 
+    // Atomic claim: whichever concurrent request's UPDATE actually flips the
+    // status wins the race; the other sees rowCount() === 0 and bails before
+    // writing a duplicate signature or sending duplicate emails/PDF.
+    $claim = $pdo->prepare("UPDATE td_proposals SET status = 'signed' WHERE id = ? AND status != 'signed'");
+    $claim->execute([$proposal_id]);
+    if ($claim->rowCount() === 0) {
+        echo json_encode(['success' => false, 'error' => 'Already signed']);
+        exit;
+    }
+
     $ip           = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
     $ip_direct    = $_SERVER['REMOTE_ADDR'] ?? '';
     $user_agent   = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -57,9 +67,6 @@ try {
         INSERT INTO td_signatures (proposal_id, signer_name, signer_email, signature_image, signed_at, ip_address, ip_direct, user_agent)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ")->execute([$proposal_id, $signer_name, $signer_email, $signature_image, $signed_at, $ip, $ip_direct, $user_agent]);
-
-    $pdo->prepare("UPDATE td_proposals SET status = 'signed' WHERE id = ?")
-        ->execute([$proposal_id]);
 
     log_event($pdo, 'signed', 'proposal', $proposal_id, $proposal['proposal_num'], $proposal['client_name']);
 
