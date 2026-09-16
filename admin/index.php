@@ -28,7 +28,7 @@ $proposals_signed = (float) $pdo->query("
 
 $outstanding = (float) $pdo->query("
     SELECT COALESCE(SUM(total),0) FROM (
-        SELECT total FROM td_invoices  WHERE status IN ('sent','viewed') AND YEAR(created_at)=$year
+        SELECT total FROM td_invoices  WHERE status IN ('sent','viewed','payment_processing') AND YEAR(created_at)=$year
         UNION ALL
         SELECT total FROM td_proposals WHERE status IN ('sent','viewed') AND YEAR(created_at)=$year
     ) t")->fetchColumn();
@@ -73,13 +73,16 @@ function status_badge(string $s): string {
         'draft'    => ['#f5e5e5','#b0b0b0'],
         'sent'     => ['#faf0f0','#6b6b6b'],
         'viewed'   => ['#f2d0dc','#191919'],
+        'payment_processing' => ['#ffeaa7','#7a5c00'],
         'paid'     => ['#e04d80','#ffffff'],
         'signed'   => ['#e04d80','#ffffff'],
         'accepted' => ['#e04d80','#ffffff'],
         'declined' => ['#f5e5e5','#b0b0b0'],
     ];
     [$bg,$color] = $map[$s] ?? ['#f5e5e5','#b0b0b0'];
-    $label = ucfirst($s==='accepted'?'signed':$s);
+    // ucfirst() alone would print the raw enum ("Payment_processing").
+    $labels = ['accepted' => 'Signed', 'payment_processing' => 'Processing'];
+    $label  = $labels[$s] ?? ucfirst($s);
     return "<span class=\"badge\" style=\"background:$bg;color:$color\">$label</span>";
 }
 
@@ -105,7 +108,7 @@ function row_actions(array $row): string {
             $dd .= $send;
             $dd .= $copyBtn;
             $dd .= '<button class="dd-item dd-pink dd-last" onclick="confirmDelete(\'invoice\','.$id.')">Delete</button>';
-        } elseif (in_array($st,['sent','viewed'])) {
+        } elseif (in_array($st,['sent','viewed','payment_processing'])) {
             $dd .= '<a class="dd-item" href="'.$open.'" target="_blank">Open invoice</a>';
             $dd .= $send;
             $dd .= $copyBtn;
@@ -666,7 +669,7 @@ function applyFilter() {
         else if (_cat === 'drafts')    show = s === 'draft';
         // Sub-filter (only when a category is selected)
         if (show && _cat !== 'all' && _cat !== 'drafts') {
-            if (_sub === 'active') show = ['sent','viewed'].includes(s);
+            if (_sub === 'active') show = ['sent','viewed','payment_processing'].includes(s);
             else if (_sub === 'paid')   show = s === 'paid';
             else if (_sub === 'signed') show = ['signed','accepted'].includes(s);
         }

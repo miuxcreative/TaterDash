@@ -17,7 +17,8 @@ what's already shipped in detail.
 - [x] **Sync live `config.php`** with every new helper added to `config.example.php`
       this round (`send_email`, `get_settings`, `get_setting`) — confirm all three exist
       live, not just the ones added first.
-- [ ] **Activate Stripe** — see Build queue below, this is the last major placeholder.
+- [x] **Activate Stripe** — code complete 2026-09-16 in TEST mode. Three manual steps
+      remain before it works live; see "Stripe go-live" below.
 - [x] **Self-directed code review of the 2026-07-07/08 build** — 8-angle review against
       everything from that round, fixed 5 confirmed bugs: stored XSS on the public
       proposal page (`notes` field wasn't escaped), a missing status guard on invoices
@@ -85,13 +86,30 @@ handoff. Test on the live site, not localhost.
 
 ## 🟢 Build queue — in priority order
 
-- [ ] **Activate Stripe** — real Checkout Session per invoice via the API, with the
-      invoice amount passed through automatically. Replaces the current static
-      `STRIPE_PAYMENT_URL` placeholder (currently just a disabled/greyed "Pay with
-      card" button on the new split-screen invoice page). Needs a Stripe account + API
-      keys, plus webhook handling to flip an invoice to `paid` automatically instead of
-      relying on a manual "Mark as paid" click. This also unlocks the "Payment
-      processing" status pill state that's designed but has no trigger yet.
+- [ ] **Stripe go-live** — code is done and tested; these steps need a human:
+      1. Run `taterdash/migrate-stripe.sql` in phpMyAdmin (adds `payment_processing`
+         to the status ENUM, the Stripe columns, and `td_stripe_events`).
+      2. Add `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `APP_URL`
+         to the live `config.php` via Hostinger File Manager — see
+         `config.example.php`. Start with `sk_test_…` keys and `STRIPE_MODE = 'test'`.
+      3. In the Stripe dashboard, add the webhook endpoint
+         `https://mallowfrenchie.com/taterdash-app/taterdash/stripe-webhook.php`
+         subscribed to `checkout.session.completed`,
+         `checkout.session.async_payment_succeeded`, `checkout.session.expired` and
+         `checkout.session.async_payment_failed`; copy its signing secret into
+         `STRIPE_WEBHOOK_SECRET`.
+      Then pay a test invoice with card `4242 4242 4242 4242`, confirm it flips to
+      paid by itself, and only then swap in live keys and set `STRIPE_MODE = 'live'`.
+- [ ] **Confirm the single-line-item billing decision** — Checkout charges
+      `td_invoices.total` as one line rather than itemising `td_line_items`, because
+      those rows are not guaranteed to sum to `total` (see CHANGELOG). The client's
+      Stripe receipt therefore says "Invoice INV-…" rather than listing deliverables.
+      Worth a deliberate yes; itemising safely means first fixing the stale rows.
+- [ ] **`database/schema.sql` is out of date** — it omits six columns that
+      `save-proposal.php` actually inserts (`campaign_name`, `platform`,
+      `campaign_start`, `campaign_end`, `package_id`, `partner_industries`) and
+      declares a `scope` column nothing uses. Rebuilding from this file would produce
+      an install where creating a proposal fails. Needs a dump of the live schema.
 - [x] **Mobile pass** — done 2026-09-16 (emulated viewports at 375/768/1440, not a
       real handset — the live-device checks above still stand). Fixed: the invoice
       line-item table overflowed its container on phones and clipped Qty/Amount with

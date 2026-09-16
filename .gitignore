@@ -3,3 +3,10 @@ Thumbs.db
 
 # Never commit real config
 taterdash/config.php
+
+# Vendored stripe-php ships example API keys in its docs, which trips GitHub
+# push protection. They are Stripe's own public placeholders, not real
+# credentials, and nothing loads these files at runtime. Re-ignored here so a
+# future `composer update` does not reintroduce the blocked push.
+taterdash/vendor/stripe/stripe-php/README.md
+taterdash/vendor/stripe/stripe-php/CHANGELOG.md

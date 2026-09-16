@@ -81,3 +81,21 @@ function email_proposal_signed_notify(array $proposal, string $signer): string {
 <p style="font-size:14px;color:#6b6b6b;line-height:1.65;margin:0;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;"><strong style="color:#191919;">'.htmlspecialchars($signer).'</strong> just signed <strong style="color:#191919;">'.htmlspecialchars($proposal['proposal_num']).'</strong> for '.htmlspecialchars($proposal['client_name']).'.</p>';
     return email_shell($body);
 }
+
+function email_invoice_paid_client(array $invoice): string {
+    $amount = '$' . number_format((float)$invoice['total'], 2);
+    $body = '
+<p style="font-size:15px;color:#191919;line-height:1.6;margin:0 0 4px;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;">Hi '.htmlspecialchars($invoice['client_name']).',</p>
+<p style="font-size:14px;color:#6b6b6b;line-height:1.65;margin:0;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;">Thank you! We\'ve received your payment of <strong style="color:#191919;">'.$amount.'</strong> for invoice <strong style="color:#191919;">'.htmlspecialchars($invoice['invoice_num']).'</strong>.</p>
+<p style="font-size:14px;color:#6b6b6b;line-height:1.65;margin:12px 0 0;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;">Stripe will email you a card receipt separately. Nothing else is needed from you.</p>
+<p style="font-size:14px;color:#6b6b6b;line-height:1.65;margin:12px 0 0;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;">Thanks for working with us! &#128062;</p>';
+    return email_shell($body);
+}
+
+function email_invoice_paid_notify(array $invoice): string {
+    $amount = '$' . number_format((float)$invoice['total'], 2);
+    $body = '
+<p style="font-size:15px;color:#191919;line-height:1.6;margin:0 0 4px;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;">Invoice paid!</p>
+<p style="font-size:14px;color:#6b6b6b;line-height:1.65;margin:0;font-family:\'Satoshi\',Helvetica,Arial,sans-serif;"><strong style="color:#191919;">'.htmlspecialchars($invoice['client_name']).'</strong> just paid <strong style="color:#191919;">'.$amount.'</strong> for invoice '.htmlspecialchars($invoice['invoice_num']).'.</p>';
+    return email_shell($body);
+}

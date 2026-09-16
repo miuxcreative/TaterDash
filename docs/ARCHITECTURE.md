@@ -100,13 +100,14 @@ other — always confirm which directory you're in before pushing.
   Generates a signed-proposal PDF (with the drawn signature image embedded) on
   successful signature, stored in `taterdash/generated-pdfs/` (deny-all `.htaccess`,
   never directly web-accessible) and attached to the confirmation email.
-- **Payments:** Stripe is still referenced only as a static `STRIPE_PAYMENT_URL`
-  constant (a plain payment link, not the API) — the new split-screen invoice page's
-  "Pay with card" button uses this same mechanism (shows disabled/greyed if unset). No
-  Stripe account/API integration exists yet — this is the main remaining build-queue
-  item (see TODO). A real integration would need a Checkout Session per invoice (so the
-  amount passes through automatically) and webhook handling to flip status to `paid`
-  automatically instead of the current manual "Mark as paid" click.
+- **Payments:** Stripe Checkout. `taterdash/create-checkout-session.php` builds a
+  Checkout Session per invoice from the invoice's own token and the amount stored in
+  the database; `taterdash/stripe-webhook.php` is the ONLY code path that may mark an
+  invoice paid from a card payment, authenticated by the `Stripe-Signature` header.
+  Returning to `success_url` never changes status — anyone can visit that URL. Replay
+  safety comes from `td_stripe_events.event_id` (UNIQUE) plus a guarded status flip.
+  Keys live only in the server-side `config.php`; `STRIPE_MODE` drives a visible TEST
+  MODE banner on the client invoice page.
 
 ---
 
@@ -251,5 +252,5 @@ COUNT, for any future numbering scheme (e.g. if per-client numbering is ever add
 | GitHub — TaterDash | github.com/miuxcreative/TaterDash | Dashboard app repo |
 | MySQL DB | `u335521326_TaterDash_db` via phpMyAdmin | Credentials live only in server-side `config.php` |
 | TaterDash login | `mallowfrenchie.com/taterdash-app/taterdash/login.php` | Session-based, single admin user in `$_SESSION['td_user']` (bcrypt password, not multi-user) |
-| Stripe | *(not yet connected)* | Only a placeholder `STRIPE_PAYMENT_URL` constant exists — see TODO, this is the main remaining build item |
+| Stripe | Code complete, TEST mode — needs keys + migration + webhook endpoint added by hand (see TODO) | Real Checkout Session per invoice (`create-checkout-session.php`); `stripe-webhook.php` is the only thing that marks an invoice paid. `STRIPE_PAYMENT_URL` is now a legacy fallback |
 | Resend | Live — `RESEND_API_KEY` in server-side `config.php` | Transactional email (invoice/proposal sent, proposal signed). Replaced EmailJS, which was never actually connected. |

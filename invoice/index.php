@@ -54,7 +54,36 @@ function fmt_money_whole($n) { return number_format(floatval($n), 0); }
 function fmt_date($d)  { return $d ? date('F j, Y', strtotime($d)) : '—'; }
 
 $is_paid = $invoice['status'] === 'paid';
-$pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
+
+// ── Stripe state ──────────────────────────────
+// Every constant is guarded with defined(): the live config.php is edited by
+// hand on the server and will not have the Stripe keys until someone adds
+// them, so an unconfigured install must degrade to the old "not set up yet"
+// button rather than fatal on a client-facing page.
+$stripe_mode  = defined('STRIPE_MODE') ? STRIPE_MODE : 'test';
+$stripe_ready = defined('STRIPE_SECRET_KEY')
+             && STRIPE_SECRET_KEY !== ''
+             && !str_contains(STRIPE_SECRET_KEY, 'YOUR_KEY_HERE')
+             && !empty($invoice['token']);
+
+// The Pay link always uses the invoice's own token, never the URL's — an
+// invoice opened through the legacy ?id= link still needs a working button.
+$pay_url = $stripe_ready
+    ? (defined('APP_URL') ? APP_URL : SITE_URL . '/taterdash-app')
+      . '/taterdash/create-checkout-session.php?t=' . urlencode($invoice['token'])
+    : '';
+
+$checkout_state = $_GET['checkout'] ?? '';
+
+// Stripe's webhook usually lands before the client's browser gets back here,
+// but not always. When they have just come from a completed Checkout and the
+// invoice is not yet flipped, show a confirming state rather than inviting
+// them to pay a second time.
+$awaiting_confirmation = !$is_paid && $checkout_state === 'done';
+
+$pay_status_label = $is_paid                 ? 'Paid — thank you!'
+                  : ($awaiting_confirmation  ? 'Confirming payment…'
+                  : 'Awaiting payment');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -139,6 +168,9 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
     .pay-note { margin-top:28px; padding-top:24px; border-top:1px solid rgba(255,255,255,0.1); font-size:13px; line-height:1.7; color:rgba(255,255,255,0.6); }
     .pay-note b { color:var(--white); }
     .pay-contact { margin-top:20px; font-size:12px; color:rgba(255,255,255,0.45); }
+    .btn-pay--waiting { background:var(--card-sand); color:var(--ink); pointer-events:none; }
+    .pay-cancelled { margin-bottom:14px; padding:10px 14px; border-radius:10px; background:rgba(255,255,255,0.08); font-size:13px; color:rgba(255,255,255,0.75); text-align:center; }
+    .test-banner { position:sticky; top:0; z-index:50; background:#7a5c00; color:#ffe9a3; font-size:12px; font-weight:600; letter-spacing:0.04em; text-align:center; padding:8px 14px; }
     .pay-contact a { color:var(--card-rose); text-decoration:none; }
 
     /* Paid state */
@@ -187,6 +219,9 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
   </style>
 </head>
 <body class="<?= $is_paid ? 'is-paid' : '' ?>">
+<?php if ($stripe_ready && $stripe_mode !== 'live'): ?>
+<div class="test-banner">TEST MODE — no real money moves. Card payments here use Stripe test cards only.</div>
+<?php endif; ?>
 <div class="layout">
 
   <!-- LEFT: the invoice document -->
@@ -276,10 +311,26 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
       <?php if ($is_paid): ?>
       <span class="btn-pay">Paid ✓</span>
       <div class="pay-note"><b>This invoice has been paid.</b> Thank you! Get in touch any time if you need a copy for your records.</div>
-      <?php elseif (STRIPE_PAYMENT_URL): ?>
+
+      <?php elseif ($awaiting_confirmation): ?>
+      <span class="btn-pay btn-pay--waiting">Confirming…</span>
+      <div class="pay-note"><b>Your payment went through.</b> We're just waiting on the final confirmation from Stripe — this page will show as paid within a few moments. You can safely close this window; nothing else is needed from you.</div>
+
+      <?php elseif ($stripe_ready): ?>
+      <?php if ($checkout_state === 'cancelled'): ?>
+      <div class="pay-cancelled">Payment cancelled — nothing was charged.</div>
+      <?php endif; ?>
+      <a href="<?= he($pay_url) ?>" class="btn-pay">Pay with card</a>
+      <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
+      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates automatically and Stripe emails you a receipt.</div>
+
+      <?php elseif (defined('STRIPE_PAYMENT_URL') && STRIPE_PAYMENT_URL): ?>
+      <?php /* Legacy single static link — only reachable on an install where the
+              Checkout keys have not been added to config.php yet. */ ?>
       <a href="<?= he(STRIPE_PAYMENT_URL) ?>" class="btn-pay" target="_blank">Pay with card</a>
       <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
-      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates instantly and you'll receive a receipt by email.</div>
+      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout.</div>
+
       <?php else: ?>
       <span class="btn-pay" style="opacity:.4;pointer-events:none;">Pay with card</span>
       <div class="pay-note"><b>Card payment isn't set up yet.</b> Reach out below and we'll send you payment instructions directly.</div>
@@ -289,5 +340,19 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
   </aside>
 
 </div>
+<?php if ($awaiting_confirmation): ?>
+<script>
+// Stripe's webhook normally beats the browser back here, but it can lag a
+// second or two. Re-check a few times, then stop — an endless reload loop
+// would be worse than a stale page if the webhook never arrives.
+(function () {
+    var KEY = 'td-confirm-tries';
+    var tries = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+    if (tries >= 4) { sessionStorage.removeItem(KEY); return; }
+    sessionStorage.setItem(KEY, tries + 1);
+    setTimeout(function () { location.reload(); }, 4000);
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

@@ -14,6 +14,24 @@ define('DB_CHARSET', 'utf8mb4');
 
 define('SITE_URL',        'https://mallowfrenchie.com');
 define('ADMIN_PASSWORD',  'YOUR_ADMIN_PASSWORD_HERE');
+// ── Stripe ───────────────────────────────────
+// STRIPE_MODE is the safety switch: 'test' uses your sk_test_/whsec_ test keys
+// and Checkout only accepts test cards. Flip to 'live' ONLY after a full test
+// payment has gone through end to end. Nothing else in the code changes — the
+// keys themselves decide which Stripe environment is hit — but the invoice page
+// shows a visible "TEST MODE" banner while this is 'test', so nobody mistakes a
+// test payment for a real one.
+define('STRIPE_MODE',           'test');           // 'test' | 'live'
+define('STRIPE_SECRET_KEY',     'sk_test_YOUR_KEY_HERE');
+define('STRIPE_WEBHOOK_SECRET', 'whsec_YOUR_WEBHOOK_SIGNING_SECRET_HERE');
+
+// Base URL of the deployed app directory (Hostinger mirrors the repo into
+// public_html/taterdash-app/, so this is NOT the same as SITE_URL).
+define('APP_URL', SITE_URL . '/taterdash-app');
+
+// Legacy single static payment link. Superseded by real Checkout Sessions;
+// kept only so an unmigrated install degrades to the old button instead of
+// fataling. Leave empty once Stripe is active.
 define('STRIPE_PAYMENT_URL', '');
 
 define('RESEND_API_KEY',  'YOUR_RESEND_API_KEY_HERE');

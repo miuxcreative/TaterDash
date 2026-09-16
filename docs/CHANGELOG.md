@@ -6,6 +6,107 @@ system reference; this file is just the timeline.
 
 ---
 
+## 2026-09-16 — Stripe (test mode)
+
+### Shipped
+
+**Stripe Checkout**
+- `stripe/stripe-php` v21.3.2 vendored into the repo (Hostinger deploy is file-copy
+  only — there is no `composer install` step on the server).
+- `taterdash/create-checkout-session.php` — public by necessity, because the person
+  paying is the client and is not logged in. The invoice token is the credential, the
+  same one that gates the invoice page. Token-only with no `?id=` fallback; the format
+  is checked against `^[a-f0-9]{32}$` before any query runs.
+- **The charged amount is always read from the database.** Nothing about the price
+  comes from the request, so a crafted URL cannot change what is charged.
+- Deliberately charges `td_invoices.total` as a single Checkout line item rather than
+  itemising `td_line_items`. Those rows are not guaranteed to sum to `total` —
+  invoices created before the July `create-invoice-from-proposal` fix have zeroed line
+  items against a non-zero total (live invoice #7 is one). Billing the itemisation
+  would charge the wrong amount. `total` is the figure the client agreed to and the
+  figure the invoice page shows as "total due".
+- `taterdash/stripe-webhook.php` — the ONLY thing that may mark an invoice paid from a
+  card payment. The browser returning to `success_url` proves nothing (anyone can visit
+  that URL), so the redirect never touches status. Authenticity comes from the
+  `Stripe-Signature` header verified against `STRIPE_WEBHOOK_SECRET`.
+- Idempotent via a new `td_stripe_events` table with a UNIQUE `event_id`: Stripe
+  retries until it gets a 2xx and can deliver the same event twice, so a replay becomes
+  a duplicate-key error rather than a second "paid" log entry or a second email. The
+  status flip itself is the atomic claim (`WHERE id = ? AND status <> 'paid'`), and the
+  side effects only run when `rowCount()` is 1.
+- `checkout.session.expired` / `async_payment_failed` release the processing lock back
+  to `viewed`, guarded so they can never demote an invoice that reached `paid`.
+- Notification emails are wrapped in their own try/catch — a mail failure must not
+  return non-2xx, or Stripe would retry work that already succeeded.
+
+**Status model**
+- `taterdash/migrate-stripe.sql` adds `payment_processing` to the invoice status ENUM
+  (designed in the UI since the client-facing redesign, with no trigger until now),
+  plus `stripe_session_id`, `stripe_payment_intent`, `paid_at`, and an index on the
+  session id the webhook looks up on every event.
+- The new state was threaded through everywhere it would otherwise silently vanish:
+  the outstanding-total query (money mid-checkout is still owed), the dashboard row
+  menu (so "Mark as paid" stays reachable), the "active" sub-filter, the client
+  active-invoice counts in `clients.php` and `get-clients.php`, and `update-status.php`'s
+  forward-only guard so Gina can still mark it paid by hand.
+- `status_badge()` renders it as "Processing" — `ucfirst()` alone printed the raw enum.
+
+**Client-facing**
+- The Pay button is a real link to a per-invoice Checkout Session. It uses the
+  invoice's own token, never the URL's, so an invoice opened through a legacy `?id=`
+  link still gets a working button.
+- New states: "Confirming…" when the client returns from a completed Checkout before
+  the webhook lands (bounded re-check, 4 attempts, then it stops — an endless reload
+  loop would be worse than a stale page), and a "Payment cancelled — nothing was
+  charged" notice on return from an abandoned Checkout.
+- A sticky TEST MODE banner shows while `STRIPE_MODE` is not `'live'`, so nobody
+  mistakes a test payment for a real one.
+- Every Stripe constant is read through `defined()`. The live `config.php` is edited by
+  hand on the server and will not have the keys until someone adds them, so an
+  unconfigured install degrades to the old "not set up yet" button instead of fataling
+  on a client-facing page.
+
+**Dependency security**
+- dompdf 3.1.5 → 3.1.6, inside the existing `^3.1` constraint. 3.1.5 carried six
+  medium-severity advisories (CVE-2026-59941/59942/59943/56722 and two more), all in
+  SVG/image handling — directly relevant, since the signed-proposal PDF embeds a
+  client-drawn signature as a data URI. `composer audit` is now clean.
+
+### Verified
+
+33 automated tests, all passing, plus a PDF regression check:
+- **Webhook (25 tests)** driven over real HTTP against `php -S`, because the CLI SAPI
+  does not wire `php://input` to stdin — an in-process call hands the webhook an empty
+  body and every signature check fails for the wrong reason. Stripe signatures are
+  HMAC-SHA256, so correctly-signed payloads can be produced locally without touching
+  Stripe. Covers: forged signature, absent signature, stale-timestamp replay, GET,
+  happy path, duplicate delivery, second event on an already-paid invoice,
+  completed-but-unpaid, expiry release, expiry against a paid invoice, unknown invoice,
+  resolution by session id when metadata is missing, and unrelated event types.
+- **Checkout guards (8 tests)**: missing/non-hex/short/injection-shaped/unknown tokens
+  all 404, already-paid redirects instead of charging twice, sub-minimum total 422.
+  Every case returns before the Stripe call, so no network traffic and no keys needed.
+- **PDF regression**: the real `render_proposal_pdf()` against dompdf 3.1.6 with a
+  signature data URI — renders a valid PDF.
+- **Invoice page**: all four states rendered and checked at 375px — unpaid (live Pay
+  link + banner), cancelled, confirming, paid. Zero horizontal overflow.
+
+**Not verified:** no real Checkout Session has been created, because that needs live
+account keys. The success path through Stripe's API is the one part still unproven —
+that is what the first test payment is for.
+
+### Found, not fixed
+
+- `database/schema.sql` is materially out of date. `save-proposal.php` inserts
+  `campaign_name`, `platform`, `campaign_start`, `campaign_end`, `package_id` and
+  `partner_industries`, none of which the file declares, and it declares a `scope`
+  column the insert never uses. The live database clearly has them (proposals work),
+  so the file — which claims to reflect the live schema — would produce a broken
+  install if anyone rebuilt from it. Fixing it properly needs a dump of the live
+  schema rather than a guess at column types.
+
+---
+
 ## 2026-09-16
 
 ### Shipped

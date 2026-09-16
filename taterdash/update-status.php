@@ -68,7 +68,10 @@ try {
             echo json_encode(['success' => true, 'invoice_id' => $id, 'deleted' => true]);
         } else {
             // Guard: only advance — never demote status
-            $guard = $status === 'sent' ? "AND status = 'draft'" : ($status === 'viewed' ? "AND status = 'sent'" : "AND status IN ('sent','viewed')");
+            // 'payment_processing' is included for paid: an invoice sitting in the
+            // Stripe Checkout window must still be markable paid by hand (client
+            // paid by transfer instead, webhook never arrived, etc.).
+            $guard = $status === 'sent' ? "AND status = 'draft'" : ($status === 'viewed' ? "AND status = 'sent'" : "AND status IN ('sent','viewed','payment_processing')");
             $stmt = $pdo->prepare("UPDATE td_invoices SET status = ? WHERE id = ? $guard");
             $stmt->execute([$status, $id]);
             if ($stmt->rowCount() === 0) {
