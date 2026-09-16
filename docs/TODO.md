@@ -66,10 +66,12 @@ handoff. Test on the live site, not localhost.
 
 **Mobile — broad pass, not just the signature pad**
 - [ ] Full invoice view on a phone (not just signing) — split-screen stacking, line
-      items readable, Pay button reachable
+      items readable, Pay button reachable *(fixed in code 2026-09-16, still needs a
+      real-handset confirmation)*
 - [ ] Full proposal view on a phone — hero, stats, package card, timeline all readable
-- [ ] Admin dashboard on a phone/tablet if Gina or Miu ever need to act on the go
-      (not designed for this yet — flag if it's actually needed)
+- [x] Admin dashboard on a phone/tablet — built 2026-09-16 (drawer nav + stacked
+      grids + horizontally scrollable tables). Still worth a real-device pass.
+      Known limit: wide tables scroll sideways rather than stacking into cards.
 
 **Images**
 - [ ] Confirm real photos are uploaded to `public_html/proposal/images/` and the random
@@ -90,9 +92,15 @@ handoff. Test on the live site, not localhost.
       keys, plus webhook handling to flip an invoice to `paid` automatically instead of
       relying on a manual "Mark as paid" click. This also unlocks the "Payment
       processing" status pill state that's designed but has no trigger yet.
-- [ ] **Mobile pass** — see testing checklist above; fix whatever it turns up. The
-      client-facing pages were built mobile-first this round, but haven't been tested
-      on a real device yet, only resized browser windows.
+- [x] **Mobile pass** — done 2026-09-16 (emulated viewports at 375/768/1440, not a
+      real handset — the live-device checks above still stand). Fixed: the invoice
+      line-item table overflowed its container on phones and clipped Qty/Amount with
+      no scroll affordance (now stacks as labelled rows); the proposal page pushed
+      13px past the viewport because `.press-strip` is a non-wrapping flex row inside
+      an `auto`-min grid track; the admin was desktop-only (fixed 240px/280px sidebar,
+      4-up KPI grid, no breakpoints on 6 of 8 pages) and now has an off-canvas drawer
+      plus stacked grids via a shared `admin/partials/mobile.php`; inputs under 16px
+      triggered iOS zoom-on-focus across the admin and both forms.
 - [ ] **Proper proposal images + naming convention** — Milena is uploading stock photos
       to `proposal/images/` to use randomly for now (see CHANGELOG); a real system
       (curated photo per proposal, or at least separate hero/about pools so crops don't

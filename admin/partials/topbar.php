@@ -93,6 +93,7 @@ try {
     z-index: 200;
 }
 .topbar-title { font-size: 18px; font-weight: 700; color: #191919; }
+.topbar > .td-nav-toggle + .topbar-title { flex: 1; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .help-btn {
     padding: 7px 16px; border-radius: 999px; border: none;
@@ -155,6 +156,7 @@ try {
 </style>
 
 <div class="topbar">
+    <button class="td-nav-toggle" id="tdNavToggle" aria-label="Menu" aria-controls="tdNav"><i class="ti ti-menu-2"></i></button>
     <div class="topbar-title"><?= htmlspecialchars($topbar_title) ?></div>
     <div class="topbar-actions">
         <?php if ($topbar_extra_actions !== ''): ?>
@@ -251,3 +253,5 @@ function startTour() {
     }).start();
 }
 </script>
+
+<?php include __DIR__ . '/mobile.php'; ?>

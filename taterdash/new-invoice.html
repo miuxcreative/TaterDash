@@ -206,8 +206,12 @@
       .form-panel { padding: 20px 16px; }
       .field-group { grid-template-columns: 1fr; }
       .field-group.triple { grid-template-columns: 1fr; }
-      .line-item-row { grid-template-columns: 1fr 70px 100px; }
+      .line-item-row { grid-template-columns: 1fr 1fr; }
+      .line-item-row > :first-child { grid-column: 1 / -1; }
       .topbar { padding: 0 16px; }
+      /* iOS zooms the whole page when a focused input is under 16px.
+         Needs .field scoping to outrank the .field input rule above. */
+      .field input, .field select, .field textarea { font-size: 16px; }
     }
 
     .btn-add-item {

@@ -214,6 +214,11 @@ function render_signed_state($signerName, $signedAtIso) {
       .pkg-price-box { text-align:left; margin-top:8px; }
       .tl-row { grid-template-columns:1fr; gap:6px; }
       .foot { flex-direction:column; gap:8px; padding:24px; }
+      /* minmax(0,...) lets tracks shrink below their content's min-content width;
+         without it .press-strip (a non-wrapping flex row) pushed the whole grid
+         wider than the viewport. */
+      .hero-grid, .about-grid, .sign-grid, .pkg-card { grid-template-columns:minmax(0,1fr); }
+      .press-strip { flex-wrap:wrap; gap:16px 28px; font-size:16px; }
     }
 
     @media print {

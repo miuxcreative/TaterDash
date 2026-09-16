@@ -112,6 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       width: 100%;
     }
     .field input:focus { border-color: var(--pink); }
+    /* iOS zooms the whole page when a focused input is under 16px */
+    @media (max-width: 768px) { .field input { font-size: 16px; } }
     .error {
       background: #fef2f2;
       border: 1px solid #fecaca;

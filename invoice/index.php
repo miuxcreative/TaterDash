@@ -156,11 +156,25 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
       .doc-head, .doc-parties, .doc-body, .doc-notes, .doc-foot { padding-left:28px; padding-right:28px; }
     }
 
+    /* Phones: the 3-column line table can't fit, so each line item becomes a
+       stacked card. Horizontal scroll was the old behaviour and it silently
+       clipped Qty/Amount with no affordance to swipe. */
+    @media (max-width: 600px) {
+      .line-table, .line-table tbody, .line-table tr, .line-table td { display:block; width:100%; }
+      .line-table thead { display:none; }
+      .line-table tr { padding:18px 0; border-bottom:1px solid var(--blush-dark); }
+      .line-table tr:first-child { padding-top:0; }
+      .line-table td { padding:0; border:none; }
+      .line-table td.li-meta { display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-top:10px; font-size:14px; }
+      .line-table td.li-meta::before { content:attr(data-label); font-size:11px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink-light); }
+      .line-table td:last-child { text-align:right; }
+      .totals-box { width:100%; }
+    }
+
     @media (max-width: 480px) {
       .doc-head { flex-wrap: wrap; gap: 16px; }
       .doc-meta { text-align: left; }
       .doc-parties { grid-template-columns: 1fr; }
-      .line-table { min-width: 420px; }
     }
 
     @media print {
@@ -221,8 +235,8 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
                 <div class="li-desc"><?= he($item['note']) ?></div>
                 <?php endif; ?>
               </td>
-              <td><?= intval($item['quantity']) ?></td>
-              <td><?= fmt_money_cents($item['total']) ?></td>
+              <td class="li-meta" data-label="Qty"><?= intval($item['quantity']) ?></td>
+              <td class="li-meta" data-label="Amount"><?= fmt_money_cents($item['total']) ?></td>
             </tr>
             <?php endforeach; ?>
           </tbody>
@@ -261,8 +275,7 @@ $pay_status_label = $is_paid ? 'Paid — thank you!' : 'Awaiting payment';
     <div class="pay-cta">
       <?php if ($is_paid): ?>
       <span class="btn-pay">Paid ✓</span>
-      <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>
-      <div class="pay-note"><b>What happens next?</b> You'll be taken to Stripe's secure checkout. Once paid, this invoice updates instantly and you'll receive a receipt by email.</div>
+      <div class="pay-note"><b>This invoice has been paid.</b> Thank you! Get in touch any time if you need a copy for your records.</div>
       <?php elseif (STRIPE_PAYMENT_URL): ?>
       <a href="<?= he(STRIPE_PAYMENT_URL) ?>" class="btn-pay" target="_blank">Pay with card</a>
       <div class="pay-secure">🔒 Secured by Stripe · card details never touch our server</div>

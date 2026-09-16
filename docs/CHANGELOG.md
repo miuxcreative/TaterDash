@@ -6,6 +6,67 @@ system reference; this file is just the timeline.
 
 ---
 
+## 2026-09-16
+
+### Shipped
+
+**Mobile pass — client-facing**
+- `invoice/index.php`: the line-item table was 464px wide inside a 375px viewport.
+  The intended behaviour was a horizontal scroll (`min-width: 420px` on the table +
+  `overflow-x: auto` on `.doc-body`), but with no visible scrollbar on a phone it just
+  read as clipped — a client could not see Qty or Amount at all. Replaced with a
+  stacked layout below 600px: each line item becomes a card, with Qty and Amount as
+  labelled rows via `data-label` + `::before`.
+- `invoice/index.php`: the paid state still said "You'll be taken to Stripe's secure
+  checkout" under a "Paid ✓" button, and claimed "Secured by Stripe" on an invoice
+  Stripe never touched. Replaced with a plain paid confirmation.
+- `proposal/index.php`: the page pushed 13px past the viewport on a phone.
+  Cause was `.press-strip` — a non-wrapping flex row (Forbes/New Times/TimeOut/AdWeek)
+  whose 356px min-content width inflated the `1fr` grid track above the 311px content
+  box. Fixed with `minmax(0, 1fr)` tracks + `flex-wrap: wrap` on the strip.
+
+**Mobile pass — admin**
+- The admin was desktop-only: a fixed 240px sidebar (280px on the three form pages)
+  with `margin-left` on the content, a 4-up KPI grid, and no media queries on six of
+  eight pages. On a phone that left ~150px of usable width plus horizontal scroll.
+- Admin CSS is duplicated per page (each page declares its own `.sidebar`/`.nav` and
+  `.main` rules), so rather than add a breakpoint to eight stylesheets the mobile
+  layer went into one new partial, `admin/partials/mobile.php`, included from
+  `partials/topbar.php` — which every admin page already includes. Below 900px:
+  - the sidebar becomes an off-canvas drawer behind a hamburger in the topbar, with a
+    backdrop, Escape-to-close, and close-on-nav-tap
+  - `.main` / `.layout` drop their left margin and collapse to a single column; the
+    form pages' two inner scroll panes become one page scroll
+  - `.stats-row` goes 4-up → 2-up; `.field-group`, `.pkg-grid`, `.panel-stats`,
+    `.p-parties` all stack; `.line-item-row` puts the description full-width above
+    qty/price
+  - every table is wrapped in a scroll container by JS (no existing CSS used
+    `> table` selectors, so wrapping is safe) so wide tables scroll instead of being
+    clipped by the `overflow: hidden` card
+- Inputs under 16px make iOS zoom the page on focus. Fixed across the admin,
+  `taterdash/login.php`, and `taterdash/new-invoice.html`. Note the override has to be
+  scoped `.field input` — pages set the size at that specificity, so a bare `input`
+  selector loses the cascade.
+
+### Verified
+
+Emulated viewports only (375 / 768 / 1440), not a real handset — the device checks in
+TODO still stand. Client pages were checked by rebuilding the live HTML with the new
+CSS; the admin by a static harness stitched from the real dashboard CSS and sidebar
+markup, since it needs a DB and a login. Confirmed: zero horizontal overflow at 375,
+drawer opens/closes, and desktop is byte-for-byte unchanged in layout (sidebar 240px,
+`.main` margin 240px, topbar left 240px, KPI grid 4-up, toggle hidden).
+
+### Known limits
+
+- Wide admin tables scroll sideways rather than stacking into cards. Stacking all
+  three (`clients-table`, `activity-table`, `p-table`) is a bigger per-column job.
+- `.table-wrap`'s rounded corners don't clip the table on mobile, since the scroll
+  container needs `overflow: visible` on the parent.
+- `taterdash/new-invoice.html` still hides its nav entirely below 768px (pre-existing).
+
+---
+
 ## 2026-07-07 — 2026-07-08
 
 ### Shipped
